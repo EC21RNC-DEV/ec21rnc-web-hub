@@ -1,0 +1,19 @@
+# Node
+node_modules/
+
+# Build output (html/에 이미 빌드 결과물 포함)
+신버젼 프론트/node_modules/
+신버젼 프론트/dist/
+
+# Certbot local
+certbot/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup
+*.backup
+
+# Temp
+*.tmp

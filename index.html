@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EC21RNC Agent - Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            color: #333;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            animation: fadeInDown 1s ease-out;
+        }
+
+        .header h1 {
+            font-size: 4rem;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            margin-bottom: 10px;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            color: rgba(255,255,255,0.9);
+            font-weight: 300;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            flex-grow: 1;
+            align-content: start;
+        }
+
+        .service-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .service-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            transition: left 0.5s;
+        }
+
+        .service-card:hover::before {
+            left: 100%;
+        }
+
+        .service-card:hover {
+            transform: translateY(-10px) scale(1.02);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.15);
+        }
+
+        .service-icon {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            box-shadow: 0 10px 25px rgba(30, 60, 114, 0.3);
+        }
+
+        .category-section {
+            margin-bottom: 60px;
+        }
+
+        .category-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .category-title {
+            font-size: 2rem;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 10px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .category-description {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 300;
+        }
+
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            align-content: start;
+        }
+
+        .service-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+            text-align: center;
+        }
+
+        .service-description {
+            color: #666;
+            text-align: center;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .service-status {
+            display: inline-flex;
+            align-items: center;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin: 0 auto;
+        }
+
+        .status-online {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 2s infinite;
+        }
+
+        .online .status-indicator {
+            background: #28a745;
+        }
+
+        .offline .status-indicator {
+            background: #dc3545;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            color: rgba(255,255,255,0.8);
+            animation: fadeInUp 1s ease-out;
+        }
+
+        .system-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .info-card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .info-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 5px;
+        }
+
+        .info-label {
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.8);
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .card-enter {
+            animation: cardSlideIn 0.6s ease-out forwards;
+        }
+
+        @keyframes cardSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .status-unused {
+            background: #e2e8f0;
+            color: #64748b;
+        }
+
+        .unused .status-indicator {
+            background: #94a3b8;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2.5rem;
+                letter-spacing: 1px;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            .service-card {
+                padding: 20px;
+            }
+            
+            .system-info {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .category-title {
+                font-size: 1.5rem;
+            }
+
+            .category-description {
+                font-size: 1rem;
+            }
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 25px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .connection-online {
+            background: rgba(212, 237, 218, 0.9);
+            color: #155724;
+            border: 1px solid rgba(40, 167, 69, 0.3);
+        }
+
+        .connection-offline {
+            background: rgba(248, 215, 218, 0.9);
+            color: #721c24;
+            border: 1px solid rgba(220, 53, 69, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status" id="connectionStatus">
+        <div class="status-indicator"></div>
+        연결 확인 중...
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>EC21RNC Agent</h1>
+            <p>통합 서비스 대시보드</p>
+        </div>
+
+        <div class="system-info">
+            <div class="info-card">
+                <div class="info-value" id="serverTime">--:--</div>
+                <div class="info-label">서버 시간</div>
+            </div>
+            <div class="info-card">
+                <div class="info-value" id="uptime">계산 중...</div>
+                <div class="info-label">업타임</div>
+            </div>
+            <div class="info-card">
+                <div class="info-value" id="serviceCount">0</div>
+                <div class="info-label">활성 서비스</div>
+            </div>
+            <div class="info-card">
+                <div class="info-value" id="serverStatus">🟢</div>
+                <div class="info-label">서버 상태</div>
+            </div>
+        </div>
+
+        <div class="services-container">
+            <!-- 에이전트 카테고리 -->
+            <div class="category-section">
+                <div class="category-header">
+                    <div class="category-title">🤖 에이전트</div>
+                    <div class="category-description">AI 에이전트 및 대화형 인터페이스</div>
+                </div>
+                <div class="category-grid">
+                    <div class="service-card card-enter" onclick="openService('/openwebui')" style="animation-delay: 0.1s">
+                        <div class="service-icon">🤖</div>
+                        <div class="service-title">OpenWeb UI</div>
+                        <div class="service-description">AI 에이전트 및 대화형 인터페이스</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8598)
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 주요 사업 카테고리 -->
+            <div class="category-section">
+                <div class="category-header">
+                    <div class="category-title">🏢 주요 사업</div>
+                    <div class="category-description">EMERiCs, AIF, GIP, CIFC 등 핵심 사업 웹앱</div>
+                </div>
+                <div class="category-grid">
+                    <!-- EMERiCs 서비스들 -->
+                    <div class="service-card card-enter" onclick="openService('/emerics-news')" style="animation-delay: 0.1s">
+                        <div class="service-icon">📰</div>
+                        <div class="service-title">EMERiCs 뉴스브리핑</div>
+                        <div class="service-description">신흥국 뉴스 브리핑 자동화</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8501)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/emerics-opinion')" style="animation-delay: 0.2s">
+                        <div class="service-icon">💭</div>
+                        <div class="service-title">EMERiCs 전문가오피니언</div>
+                        <div class="service-description">전문가 의견 분석 및 정리</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8519)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/emerics-monthly')" style="animation-delay: 0.3s">
+                        <div class="service-icon">📅</div>
+                        <div class="service-title">EMERiCs 월간특집</div>
+                        <div class="service-description">월간 특집 리포트 생성</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8533)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/emerics-trend')" style="animation-delay: 0.4s">
+                        <div class="service-icon">📈</div>
+                        <div class="service-title">EMERiCs 이슈트렌드</div>
+                        <div class="service-description">신흥국 이슈 트렌드 분석</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8555)
+                        </div>
+                    </div>
+
+                    <!-- AIF 서비스 -->
+                    <div class="service-card card-enter" onclick="openService('/aif-newsletter')" style="animation-delay: 0.5s">
+                        <div class="service-icon">📧</div>
+                        <div class="service-title">AIF 뉴스레터 자동화</div>
+                        <div class="service-description">아세안·인도남아시아 뉴스레터</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8543)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/emerics-inspection')" style="animation-delay: 0.6s">
+                        <div class="service-icon">🔍</div>
+                        <div class="service-title">보고서 내용 검수</div>
+                        <div class="service-description">보고서 품질 검수 시스템</div>
+                        <div class="service-status status-offline offline">
+                            <div class="status-indicator"></div>
+                            점검중 (8542)
+                        </div>
+                    </div>
+
+                    <!-- GIP 사업 -->
+                    <div class="service-card card-enter" onclick="openService('/gip-daily')" style="animation-delay: 0.7s">
+                        <div class="service-icon">🌍</div>
+                        <div class="service-title">GIP 일일동향</div>
+                        <div class="service-description">국내외 일일 동향 정리</div>
+                        <div class="service-status status-offline offline">
+                            <div class="status-indicator"></div>
+                            점검중 (8525)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/nuclear-bid')" style="animation-delay: 0.8s">
+                        <div class="service-icon">⚛️</div>
+                        <div class="service-title">원전 입찰정보</div>
+                        <div class="service-description">원자력 발전 입찰 정보 웹앱</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8513)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/globecorpo-auto')" style="animation-delay: 0.9s">
+                        <div class="service-icon">🏢</div>
+                        <div class="service-title">글코포 자동화</div>
+                        <div class="service-description">글로벌코퍼레이션 자동화 웹앱</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8509)
+                        </div>
+                    </div>
+
+                    <!-- CIFC 사업 -->
+                    <div class="service-card card-enter" onclick="openService('/cifc-issues')" style="animation-delay: 1.0s">
+                        <div class="service-icon">⚠️</div>
+                        <div class="service-title">CIFC 해금협 이슈정보</div>
+                        <div class="service-description">해외건설금융협회 이슈 정보</div>
+                        <div class="service-status status-offline offline">
+                            <div class="status-indicator"></div>
+                            점검중 (8540)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/cifc-bidding')" style="animation-delay: 1.1s">
+                        <div class="service-icon">💰</div>
+                        <div class="service-title">CIFC 입찰정보 분류</div>
+                        <div class="service-description">해금협 입찰 정보 자동 분류</div>
+                        <div class="service-status status-offline offline">
+                            <div class="status-indicator"></div>
+                            점검중 (8541)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/agri-export')" style="animation-delay: 1.2s">
+                        <div class="service-icon">🌾</div>
+                        <div class="service-title">농산업 수출전략 조사</div>
+                        <div class="service-description">농산업 수출 전략 자동화</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8518)
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 공통 기능 카테고리 -->
+            <div class="category-section">
+                <div class="category-header">
+                    <div class="category-title">🛠️ 공통 기능</div>
+                    <div class="category-description">범용 AI 도구 및 데이터 처리 기능</div>
+                </div>
+                <div class="category-grid">
+                    <div class="service-card card-enter" onclick="openService('/issue-clustering')" style="animation-delay: 0.1s">
+                        <div class="service-icon">🧩</div>
+                        <div class="service-title">이슈 클러스터링</div>
+                        <div class="service-description">이슈 클러스터링 및 요약</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8591)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/csf-tools')" style="animation-delay: 0.2s">
+                        <div class="service-icon">🛠️</div>
+                        <div class="service-title">CSF AI 툴 모음</div>
+                        <div class="service-description">CSF 전용 AI 도구 모음</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8508)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/ai-tools')" style="animation-delay: 0.3s">
+                        <div class="service-icon">🤖</div>
+                        <div class="service-title">AI 툴 모음</div>
+                        <div class="service-description">범용 AI 도구 모음</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8515)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/interview-translator')" style="animation-delay: 0.4s">
+                        <div class="service-icon">🗣️</div>
+                        <div class="service-title">인터뷰 번역봇</div>
+                        <div class="service-description">인터뷰 내용 자동 번역</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8504)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/report-verification')" style="animation-delay: 0.5s">
+                        <div class="service-icon">✅</div>
+                        <div class="service-title">보고서 출처 검증</div>
+                        <div class="service-description">보고서 출처 자동 검증</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8590)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/article-extractor')" style="animation-delay: 0.6s">
+                        <div class="service-icon">📰</div>
+                        <div class="service-title">기사내용 추출기</div>
+                        <div class="service-description">웹 기사 내용 자동 추출</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8592)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/prompt-hub')" style="animation-delay: 0.7s">
+                        <div class="service-icon">💡</div>
+                        <div class="service-title">프롬프트 허브</div>
+                        <div class="service-description">AI 프롬프트 관리 허브</div>
+                        <div class="service-status status-offline offline">
+                            <div class="status-indicator"></div>
+                            점검중 (8599)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/pdf-converter')" style="animation-delay: 0.8s">
+                        <div class="service-icon">📄</div>
+                        <div class="service-title">PDF to HTML 변환기</div>
+                        <div class="service-description">PDF 문서를 HTML로 변환</div>
+                        <div class="service-status status-online online">
+                            <div class="status-indicator"></div>
+                            온라인 (8593)
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 미사용 카테고리 -->
+            <div class="category-section">
+                <div class="category-header">
+                    <div class="category-title">📦 미사용</div>
+                    <div class="category-description">현재 비활성화된 웹앱 (필요시 활성화 가능)</div>
+                </div>
+                <div class="category-grid">
+                    <div class="service-card card-enter" onclick="openService('/agri-market-analysis')" style="animation-delay: 0.1s">
+                        <div class="service-icon">🌾</div>
+                        <div class="service-title">농수맞춤 자동화(시장분석)</div>
+                        <div class="service-description">농업/수산업 맞춤형 시장분석</div>
+                        <div class="service-status status-unused unused">
+                            <div class="status-indicator"></div>
+                            미사용 (8511)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/agri-competitiveness')" style="animation-delay: 0.2s">
+                        <div class="service-icon">📊</div>
+                        <div class="service-title">농수맞춤 자동화(경쟁력분석)</div>
+                        <div class="service-description">농업/수산업 맞춤형 경쟁력분석</div>
+                        <div class="service-status status-unused unused">
+                            <div class="status-indicator"></div>
+                            미사용 (8514)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/at-pet-market')" style="animation-delay: 0.3s">
+                        <div class="service-icon">🐕</div>
+                        <div class="service-title">aT 반려동물(시장분석)</div>
+                        <div class="service-description">반려동물 연관 산업 시장분석</div>
+                        <div class="service-status status-unused unused">
+                            <div class="status-indicator"></div>
+                            미사용 (8522)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/at-pet-competitive')" style="animation-delay: 0.4s">
+                        <div class="service-icon">🏆</div>
+                        <div class="service-title">aT 반려동물(경쟁력분석)</div>
+                        <div class="service-description">반려동물 연관 산업 경쟁력분석</div>
+                        <div class="service-status status-unused unused">
+                            <div class="status-indicator"></div>
+                            미사용 (8524)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/kocca-legal')" style="animation-delay: 0.5s">
+                        <div class="service-icon">⚖️</div>
+                        <div class="service-title">KOCCA 법령정보</div>
+                        <div class="service-description">기업맞춤형 법령정보</div>
+                        <div class="service-status status-unused unused">
+                            <div class="status-indicator"></div>
+                            미사용 (8516)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/kocca-behavior')" style="animation-delay: 0.6s">
+                        <div class="service-icon">📱</div>
+                        <div class="service-title">KOCCA 콘텐츠 이용행태</div>
+                        <div class="service-description">기업맞춤형 콘텐츠 이용행태</div>
+                        <div class="service-status status-unused unused">
+                            <div class="status-indicator"></div>
+                            미사용 (8517)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/kocca-overseas')" style="animation-delay: 0.7s">
+                        <div class="service-icon">🌏</div>
+                        <div class="service-title">KOCCA 해외 심층정보</div>
+                        <div class="service-description">기업맞춤형 해외 심층정보</div>
+                        <div class="service-status status-unused unused">
+                            <div class="status-indicator"></div>
+                            미사용 (8520)
+                        </div>
+                    </div>
+
+                    <div class="service-card card-enter" onclick="openService('/kocca-domestic')" style="animation-delay: 0.8s">
+                        <div class="service-icon">🏠</div>
+                        <div class="service-title">KOCCA 국내동향 해외제공</div>
+                        <div class="service-description">기업맞춤형 국내 동향 해외제공</div>
+                        <div class="service-status status-unused unused">
+                            <div class="status-indicator"></div>
+                            미사용 (8521)
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2024 EC21RNC Agent. 모든 서비스는 HTTPS로 보안됩니다.</p>
+            <p>서버 IP: 203.242.139.254</p>
+        </div>
+    </div>
+
+    <script>
+        // 시간 업데이트
+        function updateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('ko-KR');
+            document.getElementById('serverTime').textContent = timeString;
+        }
+
+        // 업타임 계산 (예시)
+        function updateUptime() {
+            const startTime = new Date('2024-01-01T00:00:00'); // 예시 시작 시간
+            const now = new Date();
+            const uptime = now - startTime;
+            
+            const days = Math.floor(uptime / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((uptime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            
+            document.getElementById('uptime').textContent = `${days}일 ${hours}시간`;
+        }
+
+        // 활성 서비스 수 계산
+        function updateServiceCount() {
+            const onlineServices = document.querySelectorAll('.status-online').length;
+            document.getElementById('serviceCount').textContent = onlineServices;
+        }
+
+        // 서비스 열기 - 수정된 URL
+        function openService(path) {
+            // 현재 도메인 사용
+            const baseUrl = window.location.origin;
+            window.open(`${baseUrl}${path}`, '_blank');
+        }
+
+        // 서비스 상태 실시간 확인
+        async function checkServiceStatus() {
+            const services = [
+                { path: '/emerics-news', port: 8501 },
+                { path: '/emerics-opinion', port: 8519 },
+                { path: '/emerics-monthly', port: 8533 },
+                { path: '/emerics-trend', port: 8555 },
+                { path: '/aif-newsletter', port: 8543 },
+                { path: '/nuclear-bid', port: 8513 },
+                { path: '/globecorpo-auto', port: 8509 },
+                { path: '/agri-export', port: 8518 },
+                { path: '/openwebui', port: 8598 },
+                { path: '/issue-clustering', port: 8591 },
+                { path: '/csf-tools', port: 8508 },
+                { path: '/ai-tools', port: 8515 },
+                { path: '/interview-translator', port: 8504 },
+                { path: '/report-verification', port: 8590 },
+                { path: '/article-extractor', port: 8592 },
+                { path: '/pdf-converter', port: 8593 }
+            ];
+
+            let onlineCount = 0;
+            
+            for (const service of services) {
+                try {
+                    const response = await fetch(service.path, { 
+                        method: 'HEAD', 
+                        mode: 'no-cors',
+                        timeout: 5000
+                    });
+                    
+                    const card = document.querySelector(`[onclick="openService('${service.path}')"]`);
+                    if (card) {
+                        const statusElement = card.querySelector('.service-status');
+                        const indicatorElement = card.querySelector('.status-indicator');
+                        
+                        if (statusElement && !statusElement.classList.contains('status-unused')) {
+                            statusElement.classList.remove('status-offline', 'offline');
+                            statusElement.classList.add('status-online', 'online');
+                            statusElement.innerHTML = `<div class="status-indicator"></div>온라인 (${service.port})`;
+                            onlineCount++;
+                        }
+                    }
+                } catch (error) {
+                    // 오프라인 상태 유지
+                    console.log(`Service ${service.path} is offline`);
+                }
+            }
+            
+            document.getElementById('serviceCount').textContent = onlineCount;
+            
+            // 연결 상태 업데이트
+            const connectionStatus = document.getElementById('connectionStatus');
+            if (onlineCount > 0) {
+                connectionStatus.className = 'connection-status connection-online';
+                connectionStatus.innerHTML = '<div class="status-indicator"></div>서비스 연결됨';
+            } else {
+                connectionStatus.className = 'connection-status connection-offline';
+                connectionStatus.innerHTML = '<div class="status-indicator"></div>연결 확인 중...';
+            }
+        }
+
+        // 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            updateTime();
+            updateUptime();
+            updateServiceCount();
+            checkServiceStatus();
+            
+            // 정기적으로 업데이트
+            setInterval(updateTime, 1000);
+            setInterval(updateUptime, 60000);
+            setInterval(checkServiceStatus, 30000); // 30초마다 서비스 상태 확인
+        });
+
+        // 카드 호버 효과
+        document.querySelectorAll('.service-card').forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-10px) scale(1.02)';
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0) scale(1)';
+            });
+        });
+    </script>
+</body>
+</html>
