@@ -93,7 +93,7 @@ export function DashboardLayout({ children, searchQuery, onSearchChange }: Dashb
 
             {/* Quick access */}
             <a
-              href="/openwebui"
+              href={window.location.hostname === "ec21rnc-agent.com" ? "/openwebui" : "http://203.242.139.254:8598"}
               target="_blank"
               rel="noopener noreferrer"
               className="hidden md:flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all hover:opacity-90"

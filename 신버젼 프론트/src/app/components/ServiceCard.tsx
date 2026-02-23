@@ -70,8 +70,11 @@ export function ServiceCard({ service, index, compact, isFavorite, onToggleFavor
 
   const handleClick = () => {
     if (isClickable) {
-      const baseUrl = window.location.origin;
-      window.open(`${baseUrl}${service.path}`, "_blank");
+      const isProduction = window.location.hostname === "ec21rnc-agent.com";
+      const url = isProduction
+        ? `${window.location.origin}${service.path}`
+        : `http://203.242.139.254:${port}`;
+      window.open(url, "_blank");
     }
   };
 
