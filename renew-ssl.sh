@@ -29,8 +29,9 @@ if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
     echo "=== 인증서 정보 ==="
     openssl x509 -in /etc/letsencrypt/live/$DOMAIN/fullchain.pem -noout -dates
     echo ""
-    echo "=== 성공! docker compose 재시작 ==="
-    docker compose restart proxy
+    echo "=== 성공! docker compose 재생성 ==="
+    docker compose down
+    docker compose up -d
     echo "완료! https://$DOMAIN 에서 확인하세요."
 else
     echo "인증서 발급 실패. dns-challenge.sh를 시도하세요."
