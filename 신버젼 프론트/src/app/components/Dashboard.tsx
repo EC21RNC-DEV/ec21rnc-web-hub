@@ -42,7 +42,7 @@ const services: Service[] = [
   { id: "s7", name: "보고서 내용 검수", description: "보고서 품질 검수 시스템", port: 8542, path: "/emerics-inspection", status: "maintenance", icon: ListChecks },
   { id: "s8", name: "GIP 일일동향", description: "국내외 일일 동향 정리", port: 8525, path: "/gip-daily", status: "maintenance", icon: Globe },
   { id: "s9", name: "원전 입찰정보", description: "원자력 발전 입찰 정보 웹앱", port: 8513, path: "/nuclear-bid", status: "online", icon: Activity },
-  { id: "s10", name: "글코포 자동화", description: "글로벌코퍼레이션 자동화 웹앱", port: 8509, path: "/globecorpo-auto", status: "online", icon: Building2 },
+  { id: "s10", name: "글코포 자동화", description: "글로벌 코스매틱 포커스 자동화 웹앱", port: 8509, path: "/globecorpo-auto", status: "online", icon: Building2 },
   { id: "s11", name: "CIFC 해금협 이슈정보", description: "해외건설금융협회 이슈 정보", port: 8540, path: "/cifc-issues", status: "maintenance", icon: Landmark },
   { id: "s12", name: "CIFC 입찰정보 분류", description: "해금협 입찰 정보 자동 분류", port: 8541, path: "/cifc-bidding", status: "maintenance", icon: FolderOpen },
   { id: "s13", name: "농산업 수출전략 조사", description: "농산업 수출 전략 자동화", port: 8518, path: "/agri-export", status: "online", icon: Leaf },
