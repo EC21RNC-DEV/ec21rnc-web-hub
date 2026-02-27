@@ -61,24 +61,39 @@ ensureAdmin();
 
 // --- Host Resolution ---
 
-// Quick TCP connect test (no HTTP, just checks if port is open)
-function testConnect(hostname, port, timeout = 2000) {
+// HTTP probe: check if hostname:port responds with given Host header
+function httpProbe(hostname, port, hostHeader, timeout = 2000) {
   return new Promise((resolve) => {
-    const socket = require("net").createConnection({ host: hostname, port, timeout }, () => {
-      socket.destroy();
-      resolve(true);
-    });
-    socket.on("error", () => resolve(false));
-    socket.on("timeout", () => { socket.destroy(); resolve(false); });
+    const req = http.request(
+      { hostname, port, path: "/", method: "HEAD", timeout, headers: { Host: hostHeader } },
+      (res) => { resolve(res.statusCode); res.resume(); }
+    );
+    req.on("error", () => resolve(0));
+    req.on("timeout", () => { req.destroy(); resolve(0); });
+    req.end();
   });
 }
 
-// Try each upstream host, return the first one that responds
-async function resolveHost(port) {
-  for (const host of UPSTREAM_HOSTS) {
-    if (await testConnect(host, port)) return host;
+// Resolve best upstream host AND Host header for a service
+// Returns { upstream, hostHeader } where hostHeader is "$host" or "$proxy_host"
+async function resolveUpstream(port) {
+  for (const hostname of UPSTREAM_HOSTS) {
+    // First try with ec21rnc-agent.com ($host) - preferred for Streamlit/WebSocket
+    const withHost = await httpProbe(hostname, port, "ec21rnc-agent.com");
+    if (withHost >= 200 && withHost < 400) {
+      return { upstream: hostname, hostHeader: "$host" };
+    }
+    // Then try with proxy_host style (hostname:port) - for services with own nginx
+    const withProxy = await httpProbe(hostname, port, `${hostname}:${port}`);
+    if (withProxy >= 200 && withProxy < 400) {
+      return { upstream: hostname, hostHeader: "$proxy_host" };
+    }
+    // If we got any response (even 4xx), this host is reachable - use $proxy_host
+    if (withHost > 0 || withProxy > 0) {
+      return { upstream: hostname, hostHeader: "$proxy_host" };
+    }
   }
-  return UPSTREAM_HOSTS[0]; // default fallback
+  return { upstream: UPSTREAM_HOSTS[0], hostHeader: "$host" }; // fallback
 }
 
 // --- Dynamic Nginx Config Generator ---
@@ -89,19 +104,19 @@ async function generateNginxConf() {
   const services = readJSON("custom-services.json", []);
   const withPath = services.filter((s) => s.path && s.port);
 
-  // Resolve hosts in parallel
-  const hosts = await Promise.all(withPath.map((s) => resolveHost(s.port)));
+  // Resolve upstream host + Host header per service in parallel
+  const resolved = await Promise.all(withPath.map((s) => resolveUpstream(s.port)));
 
   const blocks = withPath.map((s, i) => {
     const p = s.path.replace(/\/+$/, ""); // strip trailing slash
-    const upstream = hosts[i];
-    return `# Custom: ${s.name} → ${upstream}:${s.port}
+    const { upstream, hostHeader } = resolved[i];
+    return `# Custom: ${s.name} → ${upstream}:${s.port} (Host: ${hostHeader})
 location ${p} {
     return 301 $scheme://$host${p}/;
 }
 location ${p}/ {
     proxy_pass http://${upstream}:${s.port}/;
-    proxy_set_header Host $host;
+    proxy_set_header Host ${hostHeader};
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
