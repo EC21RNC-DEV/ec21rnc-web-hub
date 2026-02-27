@@ -11,6 +11,7 @@ import { useAdminAuth } from "./useAdminAuth";
 import { useCustomServices, type CustomServiceData } from "./useCustomServices";
 import { useServerHealth } from "./useServerHealth";
 import { useAdminOnly } from "./useAdminOnly";
+import { useHiddenServices } from "./useHiddenServices";
 import { getIcon, iconNames } from "./icon-map";
 import { servicesData, categories, categoryMap, type ServiceData } from "./services-data";
 import type { ServiceStatus } from "./ServiceCard";
@@ -385,6 +386,7 @@ export function AdminPage() {
   const { overrides, setStatus, resetStatus, resetAll, getStatus } = useServiceStatus();
   const { customServices, addService, removeService } = useCustomServices();
   const { adminOnlyIds, toggleAdminOnly, isAdminOnly } = useAdminOnly();
+  const { isHidden, toggleHidden } = useHiddenServices();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<ServiceStatus | "all">("all");
@@ -406,9 +408,9 @@ export function AdminPage() {
     ];
   }, [customServices]);
 
-  // All ports for health check
-  const allPorts = useMemo(() => allServicesData.map((s) => s.port), [allServicesData]);
-  const { getHealth, checkAll, lastChecked, isChecking } = useServerHealth(allPorts);
+  // All port infos for health check (includes path for domain-based check)
+  const allPortInfos = useMemo(() => allServicesData.map((s: any) => ({ port: s.port, path: s.path })), [allServicesData]);
+  const { getHealth, checkAll, lastChecked, isChecking } = useServerHealth(allPortInfos);
 
   // Merged category map
   const mergedCategoryMap = useMemo(() => {
@@ -563,6 +565,10 @@ export function AdminPage() {
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0"
                 style={{ background: "#F0FDF4", color: "#16A34A" }}>커스텀</span>
             )}
+            {isHidden(svc.id) && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                style={{ background: "#FEF2F2", color: "#DC2626" }}>숨김</span>
+            )}
             {isAdminOnly(svc.id) && (
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0"
                 style={{ background: "#FFF7ED", color: "#EA580C" }}>관리자 전용</span>
@@ -625,34 +631,49 @@ export function AdminPage() {
             {isAdminOnly(svc.id) ? <EyeOff size={12} /> : <Eye size={12} />}
           </button>
 
-          {isCustom && (
-            deleteConfirm === svc.id ? (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => handleDeleteService(svc.id)}
-                  className="px-2 py-1.5 rounded-lg text-[10px] font-bold"
-                  style={{ background: "#DC2626", color: "#FFF" }}
-                >
-                  확인
-                </button>
-                <button
-                  onClick={() => setDeleteConfirm(null)}
-                  className="px-2 py-1.5 rounded-lg text-[10px] font-bold"
-                  style={{ background: "#F1F5F9", color: "#64748B" }}
-                >
-                  취소
-                </button>
-              </div>
-            ) : (
+          {deleteConfirm === svc.id ? (
+            <div className="flex items-center gap-1">
               <button
-                onClick={() => setDeleteConfirm(svc.id)}
-                className="p-1.5 rounded-lg transition-all hover:opacity-80"
-                style={{ background: "#FEF2F2", color: "#DC2626" }}
-                title="삭제"
+                onClick={() => {
+                  if (isCustom) {
+                    handleDeleteService(svc.id);
+                  } else {
+                    toggleHidden(svc.id);
+                    showToast(`"${svc.name}" 숨김 처리됨`, "error");
+                    setDeleteConfirm(null);
+                  }
+                }}
+                className="px-2 py-1.5 rounded-lg text-[10px] font-bold"
+                style={{ background: "#DC2626", color: "#FFF" }}
               >
-                <Trash2 size={12} />
+                확인
               </button>
-            )
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-2 py-1.5 rounded-lg text-[10px] font-bold"
+                style={{ background: "#F1F5F9", color: "#64748B" }}
+              >
+                취소
+              </button>
+            </div>
+          ) : isHidden(svc.id) ? (
+            <button
+              onClick={() => { toggleHidden(svc.id); showToast(`"${svc.name}" 복원됨`, "info"); }}
+              className="p-1.5 rounded-lg transition-all hover:opacity-80"
+              style={{ background: "#ECFDF5", color: "#059669" }}
+              title="복원"
+            >
+              <RotateCcw size={12} />
+            </button>
+          ) : (
+            <button
+              onClick={() => setDeleteConfirm(svc.id)}
+              className="p-1.5 rounded-lg transition-all hover:opacity-80"
+              style={{ background: "#FEF2F2", color: "#DC2626" }}
+              title={isCustom ? "삭제" : "숨기기"}
+            >
+              <Trash2 size={12} />
+            </button>
           )}
         </div>
       </div>
@@ -767,9 +788,9 @@ export function AdminPage() {
             </div>
             <div className="flex items-center gap-3">
               {(() => {
-                const reachable = allPorts.filter((p) => getHealth(p) === "reachable").length;
-                const unreachable = allPorts.filter((p) => getHealth(p) === "unreachable").length;
-                const checking = allPorts.filter((p) => getHealth(p) === "checking").length;
+                const reachable = allPortInfos.filter((p) => getHealth(p.port) === "reachable").length;
+                const unreachable = allPortInfos.filter((p) => getHealth(p.port) === "unreachable").length;
+                const checking = allPortInfos.filter((p) => getHealth(p.port) === "checking").length;
                 return (
                   <>
                     <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "#059669" }}>

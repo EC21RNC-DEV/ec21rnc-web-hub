@@ -1,20 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { DOMAIN, servicesData } from "./services-data";
+import { DOMAIN } from "./services-data";
 
 export type HealthStatus = "reachable" | "unreachable" | "checking" | "network-error";
+
+export interface PortInfo {
+  port: number;
+  path?: string;
+}
 
 const PING_TIMEOUT = 8000; // 8 seconds
 const REFRESH_INTERVAL = 30000; // 30 seconds
 
-// port → domain path lookup
-const portPathMap: Record<number, string> = {};
-servicesData.forEach((s) => { portPathMap[s.port] = s.path; });
-
-async function pingPort(port: number): Promise<"reachable" | "unreachable"> {
+async function pingPort(port: number, path?: string): Promise<"reachable" | "unreachable"> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), PING_TIMEOUT);
 
-  const path = portPathMap[port];
   const url = path ? `${DOMAIN}${path}` : `http://203.242.139.254:${port}`;
 
   try {
@@ -31,32 +31,36 @@ async function pingPort(port: number): Promise<"reachable" | "unreachable"> {
   }
 }
 
-export function useServerHealth(ports: number[]) {
+export function useServerHealth(portInfos: PortInfo[]) {
   const [healthMap, setHealthMap] = useState<Record<number, HealthStatus>>({});
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [networkAvailable, setNetworkAvailable] = useState<boolean | null>(null);
-  const portsRef = useRef(ports);
-  portsRef.current = ports;
+  const portInfosRef = useRef(portInfos);
+  portInfosRef.current = portInfos;
+  const isFirstCheck = useRef(true);
 
   const checkAll = useCallback(async () => {
-    const currentPorts = portsRef.current;
-    if (currentPorts.length === 0) return;
+    const current = portInfosRef.current;
+    if (current.length === 0) return;
 
     setIsChecking(true);
 
-    // Set all to checking
-    setHealthMap(() => {
-      const next: Record<number, HealthStatus> = {};
-      currentPorts.forEach((p) => (next[p] = "checking"));
-      return next;
-    });
+    // Only show "checking" on first load; subsequent checks keep previous values
+    if (isFirstCheck.current) {
+      setHealthMap(() => {
+        const next: Record<number, HealthStatus> = {};
+        current.forEach((info) => (next[info.port] = "checking"));
+        return next;
+      });
+      isFirstCheck.current = false;
+    }
 
-    // Check all in parallel
+    // Check all in parallel, passing path for domain-based health check
     const results = await Promise.all(
-      currentPorts.map(async (port) => {
-        const status = await pingPort(port);
-        return { port, status };
+      current.map(async (info) => {
+        const status = await pingPort(info.port, info.path);
+        return { port: info.port, status };
       })
     );
 

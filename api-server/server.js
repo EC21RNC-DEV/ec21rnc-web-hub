@@ -222,6 +222,28 @@ app.put("/api/admin/admin-only/:id", (req, res) => {
 });
 
 // =====================
+// Hidden Services API
+// =====================
+
+app.get("/api/admin/hidden", (_req, res) => {
+  const ids = readJSON("hidden-services.json", []);
+  res.json(ids);
+});
+
+app.put("/api/admin/hidden/:id", (req, res) => {
+  const ids = readJSON("hidden-services.json", []);
+  const id = req.params.id;
+  const idx = ids.indexOf(id);
+  if (idx === -1) {
+    ids.push(id);
+  } else {
+    ids.splice(idx, 1);
+  }
+  writeJSON("hidden-services.json", ids);
+  res.json({ ok: true, ids });
+});
+
+// =====================
 // Admin Auth API
 // =====================
 

@@ -13,6 +13,7 @@ import { useServerHealth } from "./useServerHealth";
 import { useCustomServices } from "./useCustomServices";
 import { useAdminOnly } from "./useAdminOnly";
 import { useAdminAuth } from "./useAdminAuth";
+import { useHiddenServices } from "./useHiddenServices";
 import { getIcon } from "./icon-map";
 import { servicesData, categories, categoryMap, DOMAIN } from "./services-data";
 import ec21Logo from "@/assets/5641b57d5ebb9d82fb48105ab919b7a78f36cd98.png";
@@ -25,10 +26,12 @@ export function Dashboard() {
   const { customServices, customCategoryMap } = useCustomServices();
   const { isAdminOnly } = useAdminOnly();
   const { isAuthenticated } = useAdminAuth();
+  const { isHidden } = useHiddenServices();
 
   // Build all services including custom ones, filtering admin-only for non-admins
   const allServices: Service[] = useMemo(() => {
     const builtIn = servicesData
+      .filter((s) => !isHidden(s.id))
       .filter((s) => isAuthenticated || !isAdminOnly(s.id))
       .map((s) => ({
         id: s.id,
@@ -66,9 +69,9 @@ export function Dashboard() {
     return merged;
   }, [customCategoryMap]);
 
-  // All ports for health check
-  const allPorts = useMemo(() => allServices.map((s) => s.port), [allServices]);
-  const { getHealth, checkAll, lastChecked, isChecking, networkAvailable } = useServerHealth(allPorts);
+  // All port infos for health check (includes path for domain-based check)
+  const allPortInfos = useMemo(() => allServices.map((s) => ({ port: s.port, path: s.path })), [allServices]);
+  const { getHealth, checkAll, lastChecked, isChecking, networkAvailable } = useServerHealth(allPortInfos);
 
   const onlineCount = allServices.filter((s) => s.status === "online").length;
   const maintenanceCount = allServices.filter((s) => s.status === "maintenance").length;
