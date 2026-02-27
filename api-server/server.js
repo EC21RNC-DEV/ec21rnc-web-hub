@@ -93,6 +93,8 @@ location ${p}/ {
     : "# No custom services with paths\n";
 
   fs.writeFileSync(path.join(NGINX_CONF_DIR, "custom-services.conf"), conf);
+  // Signal nginx to reload
+  fs.writeFileSync(path.join(NGINX_CONF_DIR, ".reload"), Date.now().toString());
   console.log(`[nginx] Generated config for ${blocks.length} custom service(s)`);
 }
 
