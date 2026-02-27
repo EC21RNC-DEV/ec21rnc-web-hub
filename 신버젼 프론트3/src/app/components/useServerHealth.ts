@@ -56,8 +56,8 @@ export function useServerHealth(portInfos: PortInfo[]) {
 
       checkedPortsRef.current = new Set(current.map((p) => p.port));
 
-      setHealthMap(() => {
-        const next: Record<number, HealthStatus> = {};
+      setHealthMap((prev) => {
+        const next: Record<number, HealthStatus> = { ...prev };
         current.forEach((info) => {
           next[info.port] = allUnreachable
             ? "network-error"
@@ -70,8 +70,8 @@ export function useServerHealth(portInfos: PortInfo[]) {
     } catch {
       // API server itself unreachable
       setNetworkAvailable(false);
-      setHealthMap(() => {
-        const next: Record<number, HealthStatus> = {};
+      setHealthMap((prev) => {
+        const next: Record<number, HealthStatus> = { ...prev };
         current.forEach((info) => (next[info.port] = "network-error"));
         return next;
       });
