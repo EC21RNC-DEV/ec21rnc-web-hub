@@ -1,6 +1,15 @@
 version: '3.8'
 
 services:
+  api:
+    build: ./api-server
+    container_name: ec21rnc-admin-api
+    restart: unless-stopped
+    volumes:
+      - ./api-server/data:/app/data
+    networks:
+      - web
+
   proxy:
     image: nginx:latest
     container_name: ec21rnc-hub-proxy
@@ -23,6 +32,7 @@ services:
       '
     depends_on:
       - certbot
+      - api
     networks:
       - web
 
