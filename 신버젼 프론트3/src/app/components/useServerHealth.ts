@@ -1,24 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { DOMAIN, servicesData } from "./services-data";
 
 export type HealthStatus = "reachable" | "unreachable" | "checking" | "network-error";
 
+const BASE_URL = "http://203.242.139.254";
 const PING_TIMEOUT = 5000; // 5 seconds
 const REFRESH_INTERVAL = 30000; // 30 seconds
-
-// port → domain path lookup
-const portPathMap: Record<number, string> = {};
-servicesData.forEach((s) => { portPathMap[s.port] = s.path; });
 
 async function pingPort(port: number): Promise<"reachable" | "unreachable"> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), PING_TIMEOUT);
 
-  const path = portPathMap[port];
-  const url = path ? `${DOMAIN}${path}` : `http://203.242.139.254:${port}`;
-
   try {
-    await fetch(url, {
+    await fetch(`${BASE_URL}:${port}`, {
       mode: "no-cors",
       signal: controller.signal,
     });
