@@ -29,6 +29,7 @@ export function useServerHealth(portInfos: PortInfo[]) {
   const portInfosRef = useRef(portInfos);
   portInfosRef.current = portInfos;
   const isFirstCheck = useRef(true);
+  const checkedPortsRef = useRef<Set<number>>(new Set());
 
   const checkAll = useCallback(async () => {
     const current = portInfosRef.current;
@@ -52,6 +53,8 @@ export function useServerHealth(portInfos: PortInfo[]) {
       const reachableCount = Object.values(results).filter(Boolean).length;
       const allUnreachable = reachableCount === 0 && current.length > 0;
       setNetworkAvailable(!allUnreachable);
+
+      checkedPortsRef.current = new Set(current.map((p) => p.port));
 
       setHealthMap(() => {
         const next: Record<number, HealthStatus> = {};
@@ -78,8 +81,23 @@ export function useServerHealth(portInfos: PortInfo[]) {
     setIsChecking(false);
   }, []);
 
-  // Track port keys to detect newly added ports
-  const prevPortKeyRef = useRef("");
+  // Incremental check for only new ports (not already checked)
+  const checkNew = useCallback(async (newPorts: PortInfo[]) => {
+    if (newPorts.length === 0) return;
+    try {
+      const results = await batchCheck(newPorts);
+      newPorts.forEach((p) => checkedPortsRef.current.add(p.port));
+      setHealthMap((prev) => {
+        const next = { ...prev };
+        newPorts.forEach((info) => {
+          next[info.port] = results[info.port] ? "reachable" : "unreachable";
+        });
+        return next;
+      });
+    } catch {
+      // silently fail; next full check will pick them up
+    }
+  }, []);
 
   useEffect(() => {
     checkAll();
@@ -87,14 +105,13 @@ export function useServerHealth(portInfos: PortInfo[]) {
     return () => clearInterval(interval);
   }, [checkAll]);
 
-  // Re-check when new ports are added (e.g. custom services loaded async)
+  // When port list changes, only check newly added ports
   useEffect(() => {
-    const key = portInfos.map((p) => p.port).sort().join(",");
-    if (prevPortKeyRef.current && key !== prevPortKeyRef.current) {
-      checkAll();
+    const newPorts = portInfos.filter((p) => !checkedPortsRef.current.has(p.port));
+    if (newPorts.length > 0) {
+      checkNew(newPorts);
     }
-    prevPortKeyRef.current = key;
-  }, [portInfos, checkAll]);
+  }, [portInfos, checkNew]);
 
   const getHealth = useCallback(
     (port: number): HealthStatus => healthMap[port] ?? "checking",
