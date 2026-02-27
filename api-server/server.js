@@ -70,8 +70,8 @@ location ${p} {
     return 301 $scheme://$host${p}/;
 }
 location ${p}/ {
-    proxy_pass http://172.17.0.1:${s.port}/;
-    proxy_set_header Host localhost;
+    proxy_pass http://203.242.139.254:${s.port}/;
+    proxy_set_header Host $proxy_host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
@@ -290,11 +290,11 @@ app.put("/api/admin/auth/password", (req, res) => {
 const http = require("http");
 const https = require("https");
 
-// Direct check via Docker host network
+// Direct check via host external IP
 function probePort(port, timeout = 5000) {
   return new Promise((resolve) => {
     const req = http.request(
-      { hostname: "172.17.0.1", port, path: "/", method: "HEAD", timeout },
+      { hostname: "203.242.139.254", port, path: "/", method: "HEAD", timeout },
       (res) => {
         resolve(res.statusCode >= 200 && res.statusCode < 400);
         res.resume();
@@ -358,7 +358,7 @@ app.get("/api/admin/debug-proxy/:port", async (req, res) => {
   for (const host of hosts) {
     const status = await new Promise((resolve) => {
       const r = http.request(
-        { hostname: "172.17.0.1", port, path: "/", method: "GET", timeout: 3000, headers: { Host: host } },
+        { hostname: "203.242.139.254", port, path: "/", method: "GET", timeout: 3000, headers: { Host: host } },
         (resp) => { resolve(resp.statusCode); resp.resume(); }
       );
       r.on("error", (e) => resolve(`error: ${e.message}`));
