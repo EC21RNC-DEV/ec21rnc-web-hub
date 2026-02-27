@@ -14,7 +14,7 @@ import { useCustomServices } from "./useCustomServices";
 import { useAdminOnly } from "./useAdminOnly";
 import { useAdminAuth } from "./useAdminAuth";
 import { getIcon } from "./icon-map";
-import { servicesData, categories, categoryMap } from "./services-data";
+import { servicesData, categories, categoryMap, DOMAIN } from "./services-data";
 import ec21Logo from "@/assets/5641b57d5ebb9d82fb48105ab919b7a78f36cd98.png";
 
 export function Dashboard() {
@@ -35,6 +35,7 @@ export function Dashboard() {
         name: s.name,
         description: s.description,
         port: s.port,
+        path: s.path,
         status: getStatus(s.id, s.defaultStatus),
         icon: s.icon,
       }));
@@ -45,6 +46,7 @@ export function Dashboard() {
         name: s.name,
         description: s.description,
         port: s.port,
+        path: s.path,
         status: getStatus(s.id, s.defaultStatus),
         icon: getIcon(s.iconName),
       }));

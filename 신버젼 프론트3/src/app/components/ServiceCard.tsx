@@ -1,6 +1,7 @@
 import { LucideIcon, ArrowUpRight, Star, Wifi, WifiOff, Loader2, CloudOff } from "lucide-react";
 import { motion } from "motion/react";
 import type { HealthStatus } from "./useServerHealth";
+import { DOMAIN } from "./services-data";
 
 export type ServiceStatus = "online" | "maintenance" | "inactive";
 
@@ -9,6 +10,7 @@ export interface Service {
   name: string;
   description: string;
   port: number;
+  path?: string;
   status: ServiceStatus;
   icon: LucideIcon;
 }
@@ -72,13 +74,14 @@ const healthMeta: Record<HealthStatus, { label: string; color: string; icon: typ
 };
 
 export function ServiceCard({ service, index, compact, isFavorite, onToggleFavorite, health }: ServiceCardProps) {
-  const { icon: Icon, status, name, description, port, id } = service;
+  const { icon: Icon, status, name, description, port, path, id } = service;
   const m = statusMeta[status];
   const isClickable = status !== "inactive";
 
   const handleClick = () => {
     if (isClickable) {
-      window.open(`http://203.242.139.254:${port}`, "_blank");
+      const url = path ? `${DOMAIN}${path}` : `http://203.242.139.254:${port}`;
+      window.open(url, "_blank");
     }
   };
 
@@ -122,7 +125,7 @@ export function ServiceCard({ service, index, compact, isFavorite, onToggleFavor
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm truncate" style={{ color: "#0F172A" }}>{name}</p>
-          <p className="text-xs truncate" style={{ color: "#94A3B8" }}>:{port}</p>
+          <p className="text-xs truncate" style={{ color: "#94A3B8" }}>{path || `:${port}`}</p>
         </div>
         {onToggleFavorite && (
           <button

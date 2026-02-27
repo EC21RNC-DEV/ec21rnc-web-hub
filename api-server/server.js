@@ -65,7 +65,7 @@ app.get("/api/admin/services/custom", (_req, res) => {
 
 app.post("/api/admin/services/custom", (req, res) => {
   const services = readJSON("custom-services.json", []);
-  const { name, description, port, defaultStatus, iconName, category } = req.body;
+  const { name, description, port, path: svcPath, defaultStatus, iconName, category } = req.body;
 
   if (!name || !port) {
     return res.status(400).json({ error: "name and port are required" });
@@ -76,6 +76,7 @@ app.post("/api/admin/services/custom", (req, res) => {
     name,
     description: description || "",
     port: Number(port),
+    ...(svcPath ? { path: svcPath } : {}),
     defaultStatus: defaultStatus || "online",
     iconName: iconName || "Server",
     category: category || "tools",
@@ -92,10 +93,11 @@ app.put("/api/admin/services/custom/:id", (req, res) => {
   const idx = services.findIndex((s) => s.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: "service not found" });
 
-  const { name, description, port, defaultStatus, iconName, category } = req.body;
+  const { name, description, port, path: svcPath, defaultStatus, iconName, category } = req.body;
   if (name !== undefined) services[idx].name = name;
   if (description !== undefined) services[idx].description = description;
   if (port !== undefined) services[idx].port = Number(port);
+  if (svcPath !== undefined) services[idx].path = svcPath || undefined;
   if (defaultStatus !== undefined) services[idx].defaultStatus = defaultStatus;
   if (iconName !== undefined) services[idx].iconName = iconName;
   if (category !== undefined) services[idx].category = category;

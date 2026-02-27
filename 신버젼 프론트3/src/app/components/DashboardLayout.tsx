@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Search, Zap, X, ExternalLink, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import ec21Logo from "@/assets/5641b57d5ebb9d82fb48105ab919b7a78f36cd98.png";
+import { DOMAIN } from "./services-data";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -93,7 +94,7 @@ export function DashboardLayout({ children, searchQuery, onSearchChange }: Dashb
 
             {/* Quick access */}
             <a
-              href="http://203.242.139.254:8598"
+              href={`${DOMAIN}/openwebui/`}
               target="_blank"
               rel="noopener noreferrer"
               className="hidden md:flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all hover:opacity-90"

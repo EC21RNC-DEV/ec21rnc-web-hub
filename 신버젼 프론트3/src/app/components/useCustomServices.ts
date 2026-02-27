@@ -8,6 +8,7 @@ export interface CustomServiceData {
   name: string;
   description: string;
   port: number;
+  path?: string;
   defaultStatus: ServiceStatus;
   iconName: string; // key to icon map
   category: string; // category id

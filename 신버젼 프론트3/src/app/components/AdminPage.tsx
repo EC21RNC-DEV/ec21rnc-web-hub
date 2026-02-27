@@ -156,6 +156,7 @@ function AddServiceModal({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [port, setPort] = useState("");
+  const [servicePath, setServicePath] = useState("");
   const [category, setCategory] = useState("tools");
   const [iconName, setIconName] = useState("Server");
   const [status, setStatus] = useState<ServiceStatus>("online");
@@ -166,10 +167,12 @@ function AddServiceModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) return;
+    const pathVal = servicePath.trim();
     onAdd({
       name: name.trim(),
       description: description.trim(),
       port: Number(port),
+      ...(pathVal ? { path: pathVal.startsWith("/") ? pathVal : `/${pathVal}` } : {}),
       category,
       iconName,
       defaultStatus: status,
@@ -235,8 +238,8 @@ function AddServiceModal({
             />
           </div>
 
-          {/* Port + Category */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Port + Path + Category */}
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>포트 번호 *</label>
               <input
@@ -244,6 +247,17 @@ function AddServiceModal({
                 value={port}
                 onChange={(e) => setPort(e.target.value)}
                 placeholder="예: 8600"
+                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                style={{ background: "#F8FAFC", border: "1.5px solid rgba(0,0,0,0.08)", color: "#1E293B" }}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>도메인 경로</label>
+              <input
+                type="text"
+                value={servicePath}
+                onChange={(e) => setServicePath(e.target.value)}
+                placeholder="예: /my-service/"
                 className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
                 style={{ background: "#F8FAFC", border: "1.5px solid rgba(0,0,0,0.08)", color: "#1E293B" }}
               />
