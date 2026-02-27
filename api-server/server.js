@@ -98,6 +98,17 @@ location ${p}/ {
   console.log(`[nginx] Generated config for ${blocks.length} custom service(s)`);
 }
 
+// Debug: show generated nginx config
+app.get("/api/admin/nginx-conf", (_req, res) => {
+  const confPath = path.join(NGINX_CONF_DIR, "custom-services.conf");
+  try {
+    const content = fs.readFileSync(confPath, "utf-8");
+    res.type("text/plain").send(content);
+  } catch {
+    res.status(404).send("No config file");
+  }
+});
+
 // Generate on startup
 generateNginxConf();
 
