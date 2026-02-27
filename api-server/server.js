@@ -285,7 +285,7 @@ function probePort(port, timeout = 5000) {
     const req = http.request(
       { hostname: "172.17.0.1", port, path: "/", method: "HEAD", timeout },
       (res) => {
-        resolve(res.statusCode < 500);
+        resolve(res.statusCode >= 200 && res.statusCode < 400);
         res.resume();
       }
     );
@@ -309,7 +309,7 @@ function probeViaProxy(svcPath, timeout = 5000) {
         rejectUnauthorized: false,
       },
       (res) => {
-        resolve(res.statusCode < 500);
+        resolve(res.statusCode >= 200 && res.statusCode < 400);
         res.resume();
       }
     );
