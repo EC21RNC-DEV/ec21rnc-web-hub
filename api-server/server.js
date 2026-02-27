@@ -65,7 +65,7 @@ ensureAdmin();
 function httpProbe(hostname, port, hostHeader, timeout = 2000) {
   return new Promise((resolve) => {
     const req = http.request(
-      { hostname, port, path: "/", method: "HEAD", timeout, headers: { Host: hostHeader } },
+      { hostname, port, path: "/", method: "GET", timeout, headers: { Host: hostHeader } },
       (res) => { resolve(res.statusCode); res.resume(); }
     );
     req.on("error", () => resolve(0));
@@ -332,12 +332,12 @@ app.put("/api/admin/auth/password", (req, res) => {
 // Health Check Proxy
 // =====================
 
-// Try all host + Host header combinations in parallel, reachable if ANY responds (any status code)
+// Try all host + Host header combinations in parallel, reachable if ANY returns 2xx/3xx
 function probePort(port, timeout = 5000) {
   const probes = [];
   for (const hostname of UPSTREAM_HOSTS) {
     for (const hostHeader of [`${hostname}:${port}`, hostname, "ec21rnc-agent.com", "localhost"]) {
-      probes.push(httpProbe(hostname, port, hostHeader, timeout).then((code) => code > 0));
+      probes.push(httpProbe(hostname, port, hostHeader, timeout).then((code) => code >= 200 && code < 400));
     }
   }
   return Promise.all(probes).then((results) => results.some(Boolean));
@@ -351,13 +351,13 @@ function probeViaProxy(svcPath, timeout = 5000) {
         hostname: "proxy",
         port: 443,
         path: svcPath,
-        method: "HEAD",
+        method: "GET",
         timeout,
         headers: { Host: "ec21rnc-agent.com" },
         rejectUnauthorized: false,
       },
       (res) => {
-        resolve(res.statusCode > 0);
+        resolve(res.statusCode >= 200 && res.statusCode < 400);
         res.resume();
       }
     );
