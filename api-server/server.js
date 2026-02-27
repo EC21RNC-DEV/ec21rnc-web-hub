@@ -350,6 +350,26 @@ app.post("/api/admin/health-check", async (req, res) => {
   res.json(results);
 });
 
+// Debug: test upstream with different Host headers
+app.get("/api/admin/debug-proxy/:port", async (req, res) => {
+  const port = Number(req.params.port);
+  const hosts = ["localhost", "172.17.0.1", `172.17.0.1:${port}`, "203.242.139.254", `203.242.139.254:${port}`, "127.0.0.1", `127.0.0.1:${port}`];
+  const results = [];
+  for (const host of hosts) {
+    const status = await new Promise((resolve) => {
+      const r = http.request(
+        { hostname: "172.17.0.1", port, path: "/", method: "GET", timeout: 3000, headers: { Host: host } },
+        (resp) => { resolve(resp.statusCode); resp.resume(); }
+      );
+      r.on("error", (e) => resolve(`error: ${e.message}`));
+      r.on("timeout", () => { r.destroy(); resolve("timeout"); });
+      r.end();
+    });
+    results.push({ host, status });
+  }
+  res.json(results);
+});
+
 // Health check
 app.get("/api/admin/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
