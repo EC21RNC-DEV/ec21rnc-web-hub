@@ -69,9 +69,9 @@ export function Dashboard() {
     return merged;
   }, [customCategoryMap]);
 
-  // All ports for health check (API server checks directly)
-  const allPorts = useMemo(() => allServices.map((s) => s.port), [allServices]);
-  const { getHealth, checkAll, lastChecked, isChecking, networkAvailable } = useServerHealth(allPorts);
+  // All port infos for health check (API server checks directly + nginx fallback)
+  const allPortInfos = useMemo(() => allServices.map((s) => ({ port: s.port, path: s.path })), [allServices]);
+  const { getHealth, checkAll, lastChecked, isChecking, networkAvailable } = useServerHealth(allPortInfos);
 
   const onlineCount = allServices.filter((s) => s.status === "online").length;
   const maintenanceCount = allServices.filter((s) => s.status === "maintenance").length;

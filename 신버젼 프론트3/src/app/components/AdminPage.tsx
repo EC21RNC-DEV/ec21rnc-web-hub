@@ -408,9 +408,9 @@ export function AdminPage() {
     ];
   }, [customServices]);
 
-  // All ports for health check (API server checks directly)
-  const allPorts = useMemo(() => allServicesData.map((s: any) => s.port as number), [allServicesData]);
-  const { getHealth, checkAll, lastChecked, isChecking } = useServerHealth(allPorts);
+  // All port infos for health check (API server checks directly + nginx fallback)
+  const allPortInfos = useMemo(() => allServicesData.map((s: any) => ({ port: s.port, path: s.path })), [allServicesData]);
+  const { getHealth, checkAll, lastChecked, isChecking } = useServerHealth(allPortInfos);
 
   // Merged category map
   const mergedCategoryMap = useMemo(() => {
@@ -788,9 +788,9 @@ export function AdminPage() {
             </div>
             <div className="flex items-center gap-3">
               {(() => {
-                const reachable = allPorts.filter((p) => getHealth(p) === "reachable").length;
-                const unreachable = allPorts.filter((p) => getHealth(p) === "unreachable").length;
-                const checking = allPorts.filter((p) => getHealth(p) === "checking").length;
+                const reachable = allPortInfos.filter((p) => getHealth(p.port) === "reachable").length;
+                const unreachable = allPortInfos.filter((p) => getHealth(p.port) === "unreachable").length;
+                const checking = allPortInfos.filter((p) => getHealth(p.port) === "checking").length;
                 return (
                   <>
                     <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "#059669" }}>

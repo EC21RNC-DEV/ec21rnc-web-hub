@@ -277,13 +277,39 @@ app.put("/api/admin/auth/password", (req, res) => {
 // =====================
 
 const http = require("http");
+const https = require("https");
 
+// Direct check via Docker host network
 function probePort(port, timeout = 5000) {
   return new Promise((resolve) => {
     const req = http.request(
       { hostname: "172.17.0.1", port, path: "/", method: "HEAD", timeout },
       (res) => {
-        resolve(res.statusCode < 400);
+        resolve(res.statusCode < 500);
+        res.resume();
+      }
+    );
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => { req.destroy(); resolve(false); });
+    req.end();
+  });
+}
+
+// Fallback: check via nginx proxy for Docker-network-only services
+function probeViaProxy(svcPath, timeout = 5000) {
+  return new Promise((resolve) => {
+    const req = https.request(
+      {
+        hostname: "proxy",
+        port: 443,
+        path: svcPath,
+        method: "HEAD",
+        timeout,
+        headers: { Host: "ec21rnc-agent.com" },
+        rejectUnauthorized: false,
+      },
+      (res) => {
+        resolve(res.statusCode < 500);
         res.resume();
       }
     );
@@ -294,14 +320,18 @@ function probePort(port, timeout = 5000) {
 }
 
 app.post("/api/admin/health-check", async (req, res) => {
-  const { ports } = req.body;
-  if (!Array.isArray(ports) || ports.length === 0) {
-    return res.status(400).json({ error: "ports array required" });
+  const { portInfos, ports } = req.body;
+  const items = portInfos || (ports ? ports.map((p) => ({ port: p })) : null);
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: "portInfos or ports array required" });
   }
 
   const results = await Promise.all(
-    ports.map(async (port) => {
-      const reachable = await probePort(Number(port));
+    items.map(async ({ port, path: svcPath }) => {
+      let reachable = await probePort(Number(port));
+      if (!reachable && svcPath) {
+        reachable = await probeViaProxy(svcPath);
+      }
       return { port: Number(port), reachable };
     })
   );

@@ -2,13 +2,18 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 export type HealthStatus = "reachable" | "unreachable" | "checking" | "network-error";
 
+export interface PortInfo {
+  port: number;
+  path?: string;
+}
+
 const REFRESH_INTERVAL = 30000; // 30 seconds
 
-async function batchCheck(ports: number[]): Promise<Record<number, boolean>> {
+async function batchCheck(portInfos: PortInfo[]): Promise<Record<number, boolean>> {
   const res = await fetch("/api/admin/health-check", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ports }),
+    body: JSON.stringify({ portInfos }),
   });
   const data: { port: number; reachable: boolean }[] = await res.json();
   const map: Record<number, boolean> = {};
@@ -16,17 +21,17 @@ async function batchCheck(ports: number[]): Promise<Record<number, boolean>> {
   return map;
 }
 
-export function useServerHealth(ports: number[]) {
+export function useServerHealth(portInfos: PortInfo[]) {
   const [healthMap, setHealthMap] = useState<Record<number, HealthStatus>>({});
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [networkAvailable, setNetworkAvailable] = useState<boolean | null>(null);
-  const portsRef = useRef(ports);
-  portsRef.current = ports;
+  const portInfosRef = useRef(portInfos);
+  portInfosRef.current = portInfos;
   const isFirstCheck = useRef(true);
 
   const checkAll = useCallback(async () => {
-    const current = portsRef.current;
+    const current = portInfosRef.current;
     if (current.length === 0) return;
 
     setIsChecking(true);
@@ -35,7 +40,7 @@ export function useServerHealth(ports: number[]) {
     if (isFirstCheck.current) {
       setHealthMap(() => {
         const next: Record<number, HealthStatus> = {};
-        current.forEach((port) => (next[port] = "checking"));
+        current.forEach((info) => (next[info.port] = "checking"));
         return next;
       });
       isFirstCheck.current = false;
@@ -50,10 +55,10 @@ export function useServerHealth(ports: number[]) {
 
       setHealthMap(() => {
         const next: Record<number, HealthStatus> = {};
-        current.forEach((port) => {
-          next[port] = allUnreachable
+        current.forEach((info) => {
+          next[info.port] = allUnreachable
             ? "network-error"
-            : results[port]
+            : results[info.port]
               ? "reachable"
               : "unreachable";
         });
@@ -64,7 +69,7 @@ export function useServerHealth(ports: number[]) {
       setNetworkAvailable(false);
       setHealthMap(() => {
         const next: Record<number, HealthStatus> = {};
-        current.forEach((port) => (next[port] = "network-error"));
+        current.forEach((info) => (next[info.port] = "network-error"));
         return next;
       });
     }
