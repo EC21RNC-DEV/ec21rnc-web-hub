@@ -33,8 +33,10 @@ services:
         while :; do
           if [ -f /etc/nginx/conf.d/dynamic/.reload ]; then
             nginx -s reload && rm -f /etc/nginx/conf.d/dynamic/.reload;
+            sleep 60;
+          else
+            sleep 2;
           fi;
-          sleep 60;
         done &
         nginx -g "daemon off;"
       '
