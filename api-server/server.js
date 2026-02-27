@@ -272,6 +272,43 @@ app.put("/api/admin/auth/password", (req, res) => {
   res.json({ ok: true });
 });
 
+// =====================
+// Health Check Proxy
+// =====================
+
+const http = require("http");
+
+function probePort(port, timeout = 5000) {
+  return new Promise((resolve) => {
+    const req = http.request(
+      { hostname: "172.17.0.1", port, path: "/", method: "HEAD", timeout },
+      (res) => {
+        resolve(res.statusCode < 400);
+        res.resume();
+      }
+    );
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => { req.destroy(); resolve(false); });
+    req.end();
+  });
+}
+
+app.post("/api/admin/health-check", async (req, res) => {
+  const { ports } = req.body;
+  if (!Array.isArray(ports) || ports.length === 0) {
+    return res.status(400).json({ error: "ports array required" });
+  }
+
+  const results = await Promise.all(
+    ports.map(async (port) => {
+      const reachable = await probePort(Number(port));
+      return { port: Number(port), reachable };
+    })
+  );
+
+  res.json(results);
+});
+
 // Health check
 app.get("/api/admin/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
