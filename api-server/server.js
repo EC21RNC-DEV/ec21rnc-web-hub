@@ -338,7 +338,7 @@ function probePort(port, timeout = 5000) {
     UPSTREAM_HOSTS.map((hostname) =>
       new Promise((resolve) => {
         const req = http.request(
-          { hostname, port, path: "/", method: "HEAD", timeout },
+          { hostname, port, path: "/", method: "HEAD", timeout, headers: { Host: `${hostname}:${port}` } },
           (res) => {
             resolve(res.statusCode >= 200 && res.statusCode < 400);
             res.resume();
