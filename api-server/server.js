@@ -332,24 +332,15 @@ app.put("/api/admin/auth/password", (req, res) => {
 // Health Check Proxy
 // =====================
 
-// Try all upstream hosts in parallel, return true if any responds with 2xx/3xx
+// Try all host + Host header combinations in parallel, reachable if ANY returns 2xx/3xx
 function probePort(port, timeout = 5000) {
-  return Promise.all(
-    UPSTREAM_HOSTS.map((hostname) =>
-      new Promise((resolve) => {
-        const req = http.request(
-          { hostname, port, path: "/", method: "HEAD", timeout, headers: { Host: `${hostname}:${port}` } },
-          (res) => {
-            resolve(res.statusCode >= 200 && res.statusCode < 400);
-            res.resume();
-          }
-        );
-        req.on("error", () => resolve(false));
-        req.on("timeout", () => { req.destroy(); resolve(false); });
-        req.end();
-      })
-    )
-  ).then((results) => results.some(Boolean));
+  const probes = [];
+  for (const hostname of UPSTREAM_HOSTS) {
+    for (const hostHeader of [`${hostname}:${port}`, hostname, "ec21rnc-agent.com", "localhost"]) {
+      probes.push(httpProbe(hostname, port, hostHeader, timeout).then((code) => code >= 200 && code < 400));
+    }
+  }
+  return Promise.all(probes).then((results) => results.some(Boolean));
 }
 
 // Fallback: check via nginx proxy for Docker-network-only services
