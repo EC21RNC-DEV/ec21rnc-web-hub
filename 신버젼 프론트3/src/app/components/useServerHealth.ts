@@ -78,11 +78,23 @@ export function useServerHealth(portInfos: PortInfo[]) {
     setIsChecking(false);
   }, []);
 
+  // Track port keys to detect newly added ports
+  const prevPortKeyRef = useRef("");
+
   useEffect(() => {
     checkAll();
     const interval = setInterval(checkAll, REFRESH_INTERVAL);
     return () => clearInterval(interval);
   }, [checkAll]);
+
+  // Re-check when new ports are added (e.g. custom services loaded async)
+  useEffect(() => {
+    const key = portInfos.map((p) => p.port).sort().join(",");
+    if (prevPortKeyRef.current && key !== prevPortKeyRef.current) {
+      checkAll();
+    }
+    prevPortKeyRef.current = key;
+  }, [portInfos, checkAll]);
 
   const getHealth = useCallback(
     (port: number): HealthStatus => healthMap[port] ?? "checking",
