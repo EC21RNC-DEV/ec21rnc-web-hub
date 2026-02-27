@@ -19,6 +19,7 @@ async function pingPort(port: number): Promise<"reachable" | "unreachable"> {
 
   try {
     await fetch(url, {
+      method: "HEAD",
       mode: "no-cors",
       signal: controller.signal,
     });
