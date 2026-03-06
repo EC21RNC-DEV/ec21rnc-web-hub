@@ -110,12 +110,18 @@ async function generateNginxConf() {
   const blocks = withPath.map((s, i) => {
     const p = s.path.replace(/\/+$/, ""); // strip trailing slash
     const { upstream, hostHeader } = resolved[i];
-    return `# Custom: ${s.name} → ${upstream}:${s.port} (Host: ${hostHeader})
+    // preservePath: proxy_pass without trailing slash → full path forwarded to backend
+    // default: proxy_pass with trailing slash → path prefix stripped
+    const proxyTarget = s.preservePath
+      ? `http://${upstream}:${s.port}`
+      : `http://${upstream}:${s.port}/`;
+    const readTimeout = s.preservePath ? "300s" : "60s";
+    return `# Custom: ${s.name} → ${upstream}:${s.port} (Host: ${hostHeader}${s.preservePath ? ", preservePath" : ""})
 location ${p} {
     return 301 $scheme://$host${p}/;
 }
 location ${p}/ {
-    proxy_pass http://${upstream}:${s.port}/;
+    proxy_pass ${proxyTarget};
     proxy_set_header Host ${hostHeader};
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -128,7 +134,7 @@ location ${p}/ {
     proxy_set_header Connection "upgrade";
     proxy_connect_timeout 60s;
     proxy_send_timeout 60s;
-    proxy_read_timeout 60s;
+    proxy_read_timeout ${readTimeout};
     proxy_buffering off;
 }`;
   });
@@ -168,7 +174,7 @@ app.get("/api/admin/services/custom", (_req, res) => {
 
 app.post("/api/admin/services/custom", async (req, res) => {
   const services = readJSON("custom-services.json", []);
-  const { name, description, port, path: svcPath, defaultStatus, iconName, category } = req.body;
+  const { name, description, port, path: svcPath, defaultStatus, iconName, category, preservePath } = req.body;
 
   if (!name || !port) {
     return res.status(400).json({ error: "name and port are required" });
@@ -183,6 +189,7 @@ app.post("/api/admin/services/custom", async (req, res) => {
     defaultStatus: defaultStatus || "online",
     iconName: iconName || "Server",
     category: category || "tools",
+    preservePath: !!preservePath,
     createdAt: new Date().toISOString(),
   };
 
@@ -197,7 +204,7 @@ app.put("/api/admin/services/custom/:id", async (req, res) => {
   const idx = services.findIndex((s) => s.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: "service not found" });
 
-  const { name, description, port, path: svcPath, defaultStatus, iconName, category } = req.body;
+  const { name, description, port, path: svcPath, defaultStatus, iconName, category, preservePath } = req.body;
   if (name !== undefined) services[idx].name = name;
   if (description !== undefined) services[idx].description = description;
   if (port !== undefined) services[idx].port = Number(port);
@@ -205,6 +212,7 @@ app.put("/api/admin/services/custom/:id", async (req, res) => {
   if (defaultStatus !== undefined) services[idx].defaultStatus = defaultStatus;
   if (iconName !== undefined) services[idx].iconName = iconName;
   if (category !== undefined) services[idx].category = category;
+  if (preservePath !== undefined) services[idx].preservePath = !!preservePath;
 
   writeJSON("custom-services.json", services);
   await generateNginxConf();

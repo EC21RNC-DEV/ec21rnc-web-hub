@@ -12,6 +12,7 @@ export interface CustomServiceData {
   defaultStatus: ServiceStatus;
   iconName: string; // key to icon map
   category: string; // category id
+  preservePath?: boolean; // true: forward full path to backend (e.g. Airflow)
   createdAt: string;
 }
 

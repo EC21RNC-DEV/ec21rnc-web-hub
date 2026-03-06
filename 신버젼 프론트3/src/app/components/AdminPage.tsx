@@ -162,6 +162,7 @@ function AddServiceModal({
   const [iconName, setIconName] = useState("Server");
   const [status, setStatus] = useState<ServiceStatus>("online");
   const [showIconPicker, setShowIconPicker] = useState(false);
+  const [preservePath, setPreservePath] = useState(false);
 
   const isValid = name.trim() && description.trim() && port.trim() && !isNaN(Number(port));
 
@@ -177,6 +178,7 @@ function AddServiceModal({
       category,
       iconName,
       defaultStatus: status,
+      preservePath,
     });
     onClose();
   };
@@ -277,6 +279,36 @@ function AddServiceModal({
               </select>
             </div>
           </div>
+
+          {/* Preserve Path toggle */}
+          {servicePath.trim() && (
+            <div
+              className="flex items-center justify-between px-3 py-2.5 rounded-xl"
+              style={{ background: "#F8FAFC", border: "1.5px solid rgba(0,0,0,0.08)" }}
+            >
+              <div>
+                <p className="text-xs font-semibold" style={{ color: "#374151" }}>경로 유지 모드</p>
+                <p className="text-[11px]" style={{ color: "#94A3B8" }}>
+                  Airflow 등 자체 base_url 설정이 있는 서비스용
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreservePath(!preservePath)}
+                className="relative w-10 h-5.5 rounded-full transition-all"
+                style={{
+                  background: preservePath ? "#4F46E5" : "#CBD5E1",
+                  width: "40px",
+                  height: "22px",
+                }}
+              >
+                <div
+                  className="absolute top-0.5 w-[18px] h-[18px] rounded-full bg-white shadow transition-all"
+                  style={{ left: preservePath ? "20px" : "2px" }}
+                />
+              </button>
+            </div>
+          )}
 
           {/* Status */}
           <div>
