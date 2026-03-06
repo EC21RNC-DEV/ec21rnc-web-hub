@@ -287,9 +287,9 @@ function AddServiceModal({
               style={{ background: "#F8FAFC", border: "1.5px solid rgba(0,0,0,0.08)" }}
             >
               <div>
-                <p className="text-xs font-semibold" style={{ color: "#374151" }}>경로 유지 모드</p>
+                <p className="text-xs font-semibold" style={{ color: "#374151" }}>URL 자동 변환</p>
                 <p className="text-[11px]" style={{ color: "#94A3B8" }}>
-                  Airflow 등 자체 base_url 설정이 있는 서비스용
+                  Airflow 등 서브 경로를 지원하지 않는 서비스용
                 </p>
               </div>
               <button

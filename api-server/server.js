@@ -110,18 +110,27 @@ async function generateNginxConf() {
   const blocks = withPath.map((s, i) => {
     const p = s.path.replace(/\/+$/, ""); // strip trailing slash
     const { upstream, hostHeader } = resolved[i];
-    // preservePath: proxy_pass without trailing slash → full path forwarded to backend
-    // default: proxy_pass with trailing slash → path prefix stripped
-    const proxyTarget = s.preservePath
-      ? `http://${upstream}:${s.port}`
-      : `http://${upstream}:${s.port}/`;
+    // preservePath: rewrite URLs for apps that don't support subpath natively (e.g. Airflow)
+    // - proxy_pass strips prefix (same as default)
+    // - proxy_redirect rewrites Location headers (e.g. /login/ → /airflow/login/)
+    // - sub_filter rewrites HTML links
+    const rewrite = s.preservePath ? `
+    proxy_redirect / ${p}/;
+    sub_filter_once off;
+    sub_filter_types text/html application/javascript text/css;
+    sub_filter 'href="/' 'href="${p}/';
+    sub_filter 'src="/' 'src="${p}/';
+    sub_filter 'action="/' 'action="${p}/';
+    sub_filter 'url(/' 'url(${p}/';
+    sub_filter '"/api/' '"${p}/api/';
+    proxy_set_header Accept-Encoding "";` : "";
     const readTimeout = s.preservePath ? "300s" : "60s";
-    return `# Custom: ${s.name} → ${upstream}:${s.port} (Host: ${hostHeader}${s.preservePath ? ", preservePath" : ""})
+    return `# Custom: ${s.name} → ${upstream}:${s.port} (Host: ${hostHeader}${s.preservePath ? ", rewriteUrls" : ""})
 location ${p} {
     return 301 $scheme://$host${p}/;
 }
 location ${p}/ {
-    proxy_pass ${proxyTarget};
+    proxy_pass http://${upstream}:${s.port}/;
     proxy_set_header Host ${hostHeader};
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -135,7 +144,7 @@ location ${p}/ {
     proxy_connect_timeout 60s;
     proxy_send_timeout 60s;
     proxy_read_timeout ${readTimeout};
-    proxy_buffering off;
+    proxy_buffering off;${rewrite}
 }`;
   });
 
