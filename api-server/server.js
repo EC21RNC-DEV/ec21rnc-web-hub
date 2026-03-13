@@ -96,6 +96,63 @@ async function resolveUpstream(port) {
   return { upstream: UPSTREAM_HOSTS[0], hostHeader: "$host" }; // fallback
 }
 
+// --- Auto-detect Service Type ---
+
+// Probe a backend port to detect if it needs preservePath (URL rewriting)
+function detectService(hostname, port, timeout = 5000) {
+  return new Promise((resolve) => {
+    const result = { needsPreservePath: false, detectedType: "generic" };
+    const req = http.request(
+      { hostname, port, path: "/", method: "GET", timeout, headers: { Accept: "text/html" } },
+      (res) => {
+        const status = res.statusCode;
+        const server = (res.headers["server"] || "").toLowerCase();
+        let body = "";
+        res.on("data", (chunk) => { if (body.length < 8000) body += chunk.toString(); });
+        res.on("end", () => {
+          // Streamlit (TornadoServer)
+          if (server.includes("tornadoserver") || body.includes("Streamlit")) {
+            result.detectedType = "streamlit";
+          }
+          // Open WebUI
+          else if (body.includes("Open WebUI")) {
+            result.detectedType = "openwebui";
+          }
+          // FastAPI / uvicorn — check for root-relative fetch calls
+          else if (server.includes("uvicorn")) {
+            result.detectedType = "fastapi";
+            if (/fetch\(\s*['"]\//.test(body)) result.needsPreservePath = true;
+          }
+          // Airflow / redirect-based apps
+          else if ([301, 302, 307, 308].includes(status)) {
+            result.detectedType = "redirect-app";
+            result.needsPreservePath = true;
+          }
+          // Gradio
+          else if (body.includes("gradio") || body.includes("Gradio")) {
+            result.detectedType = "gradio";
+          }
+          // Generic — still check for root-relative fetch/href that would break under subpath
+          else if (/fetch\(\s*['"]\//.test(body)) {
+            result.needsPreservePath = true;
+          }
+          resolve(result);
+        });
+      }
+    );
+    req.on("error", () => resolve(result));
+    req.on("timeout", () => { req.destroy(); resolve(result); });
+    req.end();
+  });
+}
+
+// Expose as API for manual testing
+app.get("/api/admin/services/detect/:port", async (req, res) => {
+  const port = Number(req.params.port);
+  const result = await detectService(UPSTREAM_HOSTS[0], port);
+  res.json({ port, ...result });
+});
+
 // --- Dynamic Nginx Config Generator ---
 
 async function generateNginxConf() {
@@ -119,10 +176,16 @@ async function generateNginxConf() {
     sub_filter_once off;
     sub_filter_types text/html application/javascript text/css;
     sub_filter 'href="/' 'href="${p}/';
+    sub_filter "href='/" "href='${p}/";
     sub_filter 'src="/' 'src="${p}/';
+    sub_filter "src='/" "src='${p}/";
     sub_filter 'action="/' 'action="${p}/';
+    sub_filter "action='/" "action='${p}/";
     sub_filter 'url(/' 'url(${p}/';
     sub_filter '"/api/' '"${p}/api/';
+    sub_filter "'/api/" "'${p}/api/";
+    sub_filter "fetch('/" "fetch('${p}/";
+    sub_filter 'fetch("/' 'fetch("${p}/';
     proxy_set_header Accept-Encoding "";` : "";
     const readTimeout = s.preservePath ? "300s" : "60s";
     return `# Custom: ${s.name} → ${upstream}:${s.port} (Host: ${hostHeader}${s.preservePath ? ", rewriteUrls" : ""})
@@ -189,6 +252,20 @@ app.post("/api/admin/services/custom", async (req, res) => {
     return res.status(400).json({ error: "name and port are required" });
   }
 
+  // Auto-detect preservePath if not explicitly set
+  let autoPreservePath = false;
+  let detectedType = "generic";
+  if (preservePath === undefined) {
+    try {
+      const detected = await detectService(UPSTREAM_HOSTS[0], Number(port));
+      autoPreservePath = detected.needsPreservePath;
+      detectedType = detected.detectedType;
+      console.log(`[detect] port ${port}: type=${detectedType}, preservePath=${autoPreservePath}`);
+    } catch (e) {
+      console.error(`[detect] port ${port} failed:`, e.message);
+    }
+  }
+
   const newService = {
     id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     name,
@@ -198,7 +275,8 @@ app.post("/api/admin/services/custom", async (req, res) => {
     defaultStatus: defaultStatus || "online",
     iconName: iconName || "Server",
     category: category || "tools",
-    preservePath: !!preservePath,
+    preservePath: preservePath !== undefined ? !!preservePath : autoPreservePath,
+    detectedType,
     createdAt: new Date().toISOString(),
   };
 
