@@ -168,9 +168,10 @@ async function generateNginxConf() {
     const p = s.path.replace(/\/+$/, ""); // strip trailing slash
     const { upstream, hostHeader } = resolved[i];
     // preservePath: rewrite URLs for apps that don't support subpath natively (e.g. Airflow)
-    // - proxy_pass strips prefix (same as default)
     // - proxy_redirect rewrites Location headers (e.g. /login/ → /airflow/login/)
-    // - sub_filter rewrites HTML links
+    // - sub_filter rewrites static HTML attributes (href, src, etc.)
+    // - JS snippet injected into </head> patches fetch/XHR/EventSource for dynamic API calls
+    const jsSnippet = `!function(){if(window.__pathRewritten)return;window.__pathRewritten=1;var b='${p}';function r(u){return typeof u==='string'&&'/'===u[0]&&0!==u.indexOf(b)?b+u:u}var f=window.fetch;window.fetch=function(u,o){return f.call(this,r(u),o)};var x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(){arguments[1]=r(arguments[1]);return x.apply(this,arguments)};var E=window.EventSource;E&&(window.EventSource=function(u,o){return new E(r(u),o)})}();`;
     const rewrite = s.preservePath ? `
     proxy_redirect / ${p}/;
     sub_filter_once off;
@@ -186,6 +187,7 @@ async function generateNginxConf() {
     sub_filter "'/api/" "'${p}/api/";
     sub_filter "fetch('/" "fetch('${p}/";
     sub_filter 'fetch("/' 'fetch("${p}/';
+    sub_filter "</head>" "<script>${jsSnippet}</script></head>";
     proxy_set_header Accept-Encoding "";` : "";
     const readTimeout = s.preservePath ? "300s" : "60s";
     return `# Custom: ${s.name} → ${upstream}:${s.port} (Host: ${hostHeader}${s.preservePath ? ", rewriteUrls" : ""})
