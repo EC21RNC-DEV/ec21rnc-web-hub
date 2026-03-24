@@ -175,6 +175,7 @@ function ServiceFormModal({
   const [status, setStatus] = useState<ServiceStatus>(editData?.defaultStatus ?? "online");
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [preservePath, setPreservePath] = useState(editData?.preservePath ?? false);
+  const [spaMode, setSpaMode] = useState(editData?.spaMode ?? false);
 
   const isValid = isEditBuiltIn
     ? name.trim() && description.trim()
@@ -197,7 +198,8 @@ function ServiceFormModal({
       category,
       iconName,
       defaultStatus: status,
-      preservePath,
+      preservePath: spaMode ? false : preservePath,
+      spaMode,
     };
     if (isEditCustom && editData && onUpdate) {
       onUpdate(editData.id, data);
@@ -304,8 +306,8 @@ function ServiceFormModal({
             </div>
           </div>}
 
-          {/* Preserve Path toggle */}
-          {!isEditBuiltIn && servicePath.trim() && (
+          {/* Preserve Path + SPA Mode toggles */}
+          {!isEditBuiltIn && servicePath.trim() && (<>
             <div
               className="flex items-center justify-between px-3 py-2.5 rounded-xl"
               style={{ background: "#F8FAFC", border: "1.5px solid rgba(0,0,0,0.08)" }}
@@ -321,18 +323,51 @@ function ServiceFormModal({
                 onClick={() => setPreservePath(!preservePath)}
                 className="relative w-10 h-5.5 rounded-full transition-all"
                 style={{
-                  background: preservePath ? "#4F46E5" : "#CBD5E1",
+                  background: preservePath && !spaMode ? "#4F46E5" : "#CBD5E1",
+                  width: "40px",
+                  height: "22px",
+                  opacity: spaMode ? 0.4 : 1,
+                  pointerEvents: spaMode ? "none" : "auto",
+                }}
+              >
+                <div
+                  className="absolute top-0.5 w-[18px] h-[18px] rounded-full bg-white shadow transition-all"
+                  style={{ left: preservePath && !spaMode ? "20px" : "2px" }}
+                />
+              </button>
+            </div>
+            <div
+              className="flex items-center justify-between px-3 py-2.5 rounded-xl"
+              style={{ background: spaMode ? "#EEF2FF" : "#F8FAFC", border: spaMode ? "1.5px solid #C7D2FE" : "1.5px solid rgba(0,0,0,0.08)" }}
+            >
+              <div>
+                <p className="text-xs font-semibold" style={{ color: "#374151" }}>SPA 모드 (iframe)</p>
+                <p className="text-[11px]" style={{ color: "#94A3B8" }}>
+                  React, Vue 등 프론트엔드 SPA 앱용
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSpaMode(!spaMode)}
+                className="relative rounded-full transition-all"
+                style={{
+                  background: spaMode ? "#4F46E5" : "#CBD5E1",
                   width: "40px",
                   height: "22px",
                 }}
               >
                 <div
                   className="absolute top-0.5 w-[18px] h-[18px] rounded-full bg-white shadow transition-all"
-                  style={{ left: preservePath ? "20px" : "2px" }}
+                  style={{ left: spaMode ? "20px" : "2px" }}
                 />
               </button>
             </div>
-          )}
+            {spaMode && (
+              <div className="px-3 py-2 rounded-lg text-[11px] leading-relaxed" style={{ background: "#FFFBEB", border: "1px solid #FDE68A", color: "#92400E" }}>
+                <strong>SPA 모드:</strong> 앱을 iframe으로 감싸서 루트(/)에서 실행합니다. React Router, Vue Router 등 클라이언트 라우터를 사용하는 앱은 이 모드를 켜세요. Streamlit, Flask, Gradio 등 서버 렌더링 앱은 끄세요.
+              </div>
+            )}
+          </>)}
 
           {/* Status (custom/add only) */}
           {!isEditBuiltIn && <div>

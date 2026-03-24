@@ -13,6 +13,7 @@ export interface CustomServiceData {
   iconName: string; // key to icon map
   category: string; // category id
   preservePath?: boolean; // true: forward full path to backend (e.g. Airflow)
+  spaMode?: boolean; // true: iframe wrapper for React/Vue SPA apps
   createdAt: string;
 }
 

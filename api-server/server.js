@@ -167,11 +167,38 @@ async function generateNginxConf() {
   const blocks = withPath.map((s, i) => {
     const p = s.path.replace(/\/+$/, ""); // strip trailing slash
     const { upstream, hostHeader } = resolved[i];
-    // preservePath: rewrite URLs for apps that don't support subpath natively (e.g. Airflow)
-    // - proxy_redirect rewrites Location headers (e.g. /login/ → /airflow/login/)
-    // - sub_filter rewrites static HTML attributes (href, src, etc.)
-    // - JS snippet injected into </head> patches fetch/XHR/EventSource for dynamic API calls
-    // JS snippet: patches fetch, XHR, EventSource, window.open, history, WebSocket, Worker, sendBeacon, jQuery $.ajax
+
+    // ── SPA mode: serve iframe wrapper page ──
+    // React/Vue SPA는 client-side router가 window.location.pathname을 읽어서
+    // subpath 배포 시 경로를 인식 못 함. iframe으로 감싸면 앱은 "/"에서 실행되므로
+    // 앱 코드 수정 없이 동작함.
+    if (s.spaMode) {
+      const iframePage = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${s.name}</title><style>*{margin:0;padding:0}html,body{height:100%;overflow:hidden}iframe{width:100%;height:100%;border:none}</style></head><body><iframe src="http://${upstream}:${s.port}/"></iframe></body></html>`;
+      // Write iframe HTML file
+      fs.writeFileSync(path.join(NGINX_CONF_DIR, `spa-${s.id}.html`), iframePage);
+      return `# Custom (SPA iframe): ${s.name} → ${upstream}:${s.port}
+location ${p} {
+    return 301 $scheme://$host${p}/;
+}
+location = ${p}/ {
+    default_type text/html;
+    alias /etc/nginx/conf.d/dynamic/spa-${s.id}.html;
+}
+location ${p}/api/ {
+    proxy_pass http://${upstream}:${s.port}/api/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 300s;
+    proxy_buffering off;
+}`;
+    }
+
+    // ── Normal mode: proxy with optional URL rewriting ──
     const jsSnippet = `!function(){if(window.__pathRewritten)return;window.__pathRewritten=1;var b='${p}';function r(u){return typeof u==='string'&&'/'===u[0]&&0!==u.indexOf(b)?b+u:u}var f=window.fetch;window.fetch=function(u,o){return f.call(this,r(u),o)};var x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(){arguments[1]=r(arguments[1]);return x.apply(this,arguments)};var E=window.EventSource;E&&(window.EventSource=function(u,o){return new E(r(u),o)});var wo=window.open;window.open=function(){arguments[0]=r(arguments[0]);return wo.apply(this,arguments)};var hp=history.pushState;history.pushState=function(s,t,u){return hp.call(this,s,t,r(u))};var hr=history.replaceState;history.replaceState=function(s,t,u){return hr.call(this,s,t,r(u))};if(navigator.sendBeacon){var sb=navigator.sendBeacon.bind(navigator);navigator.sendBeacon=function(u,d){return sb(r(u),d)}}var WS=window.WebSocket;WS&&(window.WebSocket=function(u,p2){return p2?new WS(r(u),p2):new WS(r(u))});var Wk=window.Worker;Wk&&(window.Worker=function(u,o){return new Wk(r(u),o)});if(window.jQuery){var aj=jQuery.ajax;jQuery.ajax=function(u,s2){if(typeof u==='string'){u=r(u)}else if(u&&u.url){u.url=r(u.url)}return aj.call(this,u,s2)}}if(window.axios){var ai=window.axios.interceptors;ai&&ai.request&&ai.request.use(function(c){if(c.url)c.url=r(c.url);return c})}}();`;
     const rewrite = s.preservePath ? `
     proxy_redirect / ${p}/;
@@ -271,7 +298,7 @@ app.get("/api/admin/services/custom", (_req, res) => {
 
 app.post("/api/admin/services/custom", async (req, res) => {
   const services = readJSON("custom-services.json", []);
-  const { name, description, port, path: svcPath, defaultStatus, iconName, category, preservePath } = req.body;
+  const { name, description, port, path: svcPath, defaultStatus, iconName, category, preservePath, spaMode } = req.body;
 
   if (!name || !port) {
     return res.status(400).json({ error: "name and port are required" });
@@ -301,6 +328,7 @@ app.post("/api/admin/services/custom", async (req, res) => {
     iconName: iconName || "Server",
     category: category || "tools",
     preservePath: preservePath !== undefined ? !!preservePath : autoPreservePath,
+    spaMode: !!spaMode,
     detectedType,
     createdAt: new Date().toISOString(),
   };
@@ -316,7 +344,7 @@ app.put("/api/admin/services/custom/:id", async (req, res) => {
   const idx = services.findIndex((s) => s.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: "service not found" });
 
-  const { name, description, port, path: svcPath, defaultStatus, iconName, category, preservePath } = req.body;
+  const { name, description, port, path: svcPath, defaultStatus, iconName, category, preservePath, spaMode } = req.body;
   if (name !== undefined) services[idx].name = name;
   if (description !== undefined) services[idx].description = description;
   if (port !== undefined) services[idx].port = Number(port);
@@ -325,6 +353,7 @@ app.put("/api/admin/services/custom/:id", async (req, res) => {
   if (iconName !== undefined) services[idx].iconName = iconName;
   if (category !== undefined) services[idx].category = category;
   if (preservePath !== undefined) services[idx].preservePath = !!preservePath;
+  if (spaMode !== undefined) services[idx].spaMode = !!spaMode;
 
   writeJSON("custom-services.json", services);
   await generateNginxConf();
