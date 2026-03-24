@@ -173,8 +173,9 @@ async function generateNginxConf() {
     // subpath 배포 시 경로를 인식 못 함. iframe으로 감싸면 앱은 "/"에서 실행되므로
     // 앱 코드 수정 없이 동작함.
     if (s.spaMode) {
-      // SPA iframe: load app directly from its own origin (IP:port)
-      // This avoids asset path conflicts with the hub's /assets/
+      // SPA iframe: proxy entire app under __app__/ subpath
+      // iframe loads from same HTTPS domain to avoid mixed content
+      // All requests inside iframe go through __app__/ proxy
       const title = s.name.replace(/'/g, "\\'");
       return `# Custom (SPA iframe): ${s.name} → ${upstream}:${s.port}
 location ${p} {
@@ -182,7 +183,30 @@ location ${p} {
 }
 location = ${p}/ {
     add_header Content-Type text/html;
-    return 200 '<!DOCTYPE html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>${title}</title><style>*{margin:0;padding:0}html,body{height:100%;overflow:hidden}iframe{width:100%;height:100%;border:none}</style></head><body><iframe src="http://${upstream}:${s.port}/"></iframe></body></html>';
+    return 200 '<!DOCTYPE html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>${title}</title><style>*{margin:0;padding:0}html,body{height:100%;overflow:hidden}iframe{width:100%;height:100%;border:none}</style></head><body><iframe src="${p}/__app__/"></iframe></body></html>';
+}
+location ${p}/__app__/ {
+    proxy_pass http://${upstream}:${s.port}/;
+    proxy_set_header Host ${hostHeader};
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_read_timeout 300s;
+    proxy_buffering off;
+    sub_filter_once off;
+    sub_filter_types text/html;
+    sub_filter 'src="/' 'src="${p}/__app__/';
+    sub_filter "src='/" "src='${p}/__app__/";
+    sub_filter 'href="/' 'href="${p}/__app__/';
+    sub_filter "href='/" "href='${p}/__app__/";
+    sub_filter 'action="/' 'action="${p}/__app__/';
+    sub_filter "action='/" "action='${p}/__app__/";
+    proxy_set_header Accept-Encoding "";
 }`;
     }
 
