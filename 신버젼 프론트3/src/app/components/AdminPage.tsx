@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import {
   ArrowLeft, Search, X, RotateCcw, CheckCircle2, AlertTriangle,
   XCircle, Server, Shield, ChevronDown, Plus, Trash2, Lock,
-  Eye, EyeOff, LogOut, Key, RefreshCw, Wifi, WifiOff, Loader2, CloudOff,
+  Eye, EyeOff, LogOut, Key, RefreshCw, Wifi, WifiOff, Loader2, CloudOff, Pencil,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Link } from "react-router";
@@ -12,6 +12,7 @@ import { useCustomServices, type CustomServiceData } from "./useCustomServices";
 import { useServerHealth } from "./useServerHealth";
 import { useAdminOnly } from "./useAdminOnly";
 import { useHiddenServices } from "./useHiddenServices";
+import { useServiceOverrides } from "./useServiceOverrides";
 import { getIcon, iconNames } from "./icon-map";
 import { servicesData, categories, categoryMap, type ServiceData } from "./services-data";
 import type { ServiceStatus } from "./ServiceCard";
@@ -146,31 +147,49 @@ function LoginScreen({ onLogin }: { onLogin: (pw: string) => Promise<boolean> })
   );
 }
 
-// ── Add Service Modal ──
-function AddServiceModal({
+// ── Add/Edit Service Modal ──
+function ServiceFormModal({
   onClose,
   onAdd,
+  onUpdate,
+  onUpdateBuiltIn,
+  editData,
+  editBuiltIn,
 }: {
   onClose: () => void;
-  onAdd: (data: Omit<CustomServiceData, "id" | "createdAt">) => void;
+  onAdd?: (data: Omit<CustomServiceData, "id" | "createdAt">) => void;
+  onUpdate?: (id: string, data: Partial<Omit<CustomServiceData, "id" | "createdAt">>) => void;
+  onUpdateBuiltIn?: (id: string, data: { name?: string; description?: string }) => void;
+  editData?: CustomServiceData | null;
+  editBuiltIn?: { id: string; name: string; description: string } | null;
 }) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [port, setPort] = useState("");
-  const [servicePath, setServicePath] = useState("");
-  const [category, setCategory] = useState("tools");
-  const [iconName, setIconName] = useState("Server");
-  const [status, setStatus] = useState<ServiceStatus>("online");
+  const isEditCustom = !!editData;
+  const isEditBuiltIn = !!editBuiltIn;
+  const isEdit = isEditCustom || isEditBuiltIn;
+  const [name, setName] = useState(editData?.name ?? editBuiltIn?.name ?? "");
+  const [description, setDescription] = useState(editData?.description ?? editBuiltIn?.description ?? "");
+  const [port, setPort] = useState(editData ? String(editData.port) : "");
+  const [servicePath, setServicePath] = useState(editData?.path ?? "");
+  const [category, setCategory] = useState(editData?.category ?? "tools");
+  const [iconName, setIconName] = useState(editData?.iconName ?? "Server");
+  const [status, setStatus] = useState<ServiceStatus>(editData?.defaultStatus ?? "online");
   const [showIconPicker, setShowIconPicker] = useState(false);
-  const [preservePath, setPreservePath] = useState(false);
+  const [preservePath, setPreservePath] = useState(editData?.preservePath ?? false);
 
-  const isValid = name.trim() && description.trim() && port.trim() && !isNaN(Number(port));
+  const isValid = isEditBuiltIn
+    ? name.trim() && description.trim()
+    : name.trim() && description.trim() && port.trim() && !isNaN(Number(port));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) return;
+    if (isEditBuiltIn && editBuiltIn && onUpdateBuiltIn) {
+      onUpdateBuiltIn(editBuiltIn.id, { name: name.trim(), description: description.trim() });
+      onClose();
+      return;
+    }
     const pathVal = servicePath.trim();
-    onAdd({
+    const data = {
       name: name.trim(),
       description: description.trim(),
       port: Number(port),
@@ -179,7 +198,12 @@ function AddServiceModal({
       iconName,
       defaultStatus: status,
       preservePath,
-    });
+    };
+    if (isEditCustom && editData && onUpdate) {
+      onUpdate(editData.id, data);
+    } else if (onAdd) {
+      onAdd(data);
+    }
     onClose();
   };
 
@@ -205,8 +229,8 @@ function AddServiceModal({
       >
         <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #F1F5F9" }}>
           <div className="flex items-center gap-2">
-            <Plus size={16} style={{ color: "#4F46E5" }} />
-            <h2 className="font-bold text-sm" style={{ color: "#0F172A" }}>새 서비스 추가</h2>
+            {isEdit ? <Pencil size={16} style={{ color: "#4F46E5" }} /> : <Plus size={16} style={{ color: "#4F46E5" }} />}
+            <h2 className="font-bold text-sm" style={{ color: "#0F172A" }}>{isEdit ? "서비스 수정" : "새 서비스 추가"}</h2>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg" style={{ color: "#94A3B8" }}>
             <X size={16} />
@@ -241,8 +265,8 @@ function AddServiceModal({
             />
           </div>
 
-          {/* Port + Path + Category */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Port + Path + Category (custom/add only) */}
+          {!isEditBuiltIn && <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>포트 번호 *</label>
               <input
@@ -278,10 +302,10 @@ function AddServiceModal({
                 ))}
               </select>
             </div>
-          </div>
+          </div>}
 
           {/* Preserve Path toggle */}
-          {servicePath.trim() && (
+          {!isEditBuiltIn && servicePath.trim() && (
             <div
               className="flex items-center justify-between px-3 py-2.5 rounded-xl"
               style={{ background: "#F8FAFC", border: "1.5px solid rgba(0,0,0,0.08)" }}
@@ -310,8 +334,8 @@ function AddServiceModal({
             </div>
           )}
 
-          {/* Status */}
-          <div>
+          {/* Status (custom/add only) */}
+          {!isEditBuiltIn && <div>
             <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>초기 상태</label>
             <div className="flex gap-2">
               {statusOptions.map((opt) => (
@@ -331,10 +355,10 @@ function AddServiceModal({
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
 
-          {/* Icon */}
-          <div>
+          {/* Icon (custom/add only) */}
+          {!isEditBuiltIn && <div>
             <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>아이콘</label>
             <button
               type="button"
@@ -380,7 +404,7 @@ function AddServiceModal({
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
+          </div>}
 
           {/* Submit */}
           <div className="flex gap-2 pt-2">
@@ -403,7 +427,7 @@ function AddServiceModal({
                 cursor: isValid ? "pointer" : "not-allowed",
               }}
             >
-              추가
+              {isEdit ? "저장" : "추가"}
             </button>
           </div>
         </form>
@@ -416,15 +440,18 @@ function AddServiceModal({
 export function AdminPage() {
   const { isAuthenticated, login, logout } = useAdminAuth();
   const { overrides, setStatus, resetStatus, resetAll, getStatus } = useServiceStatus();
-  const { customServices, addService, removeService } = useCustomServices();
+  const { customServices, addService, removeService, updateService } = useCustomServices();
   const { adminOnlyIds, toggleAdminOnly, isAdminOnly } = useAdminOnly();
   const { isHidden, toggleHidden } = useHiddenServices();
+  const { overrides: serviceOverrides, updateOverride, getOverriddenName, getOverriddenDescription } = useServiceOverrides();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<ServiceStatus | "all">("all");
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingService, setEditingService] = useState<CustomServiceData | null>(null);
+  const [editingBuiltIn, setEditingBuiltIn] = useState<{ id: string; name: string; description: string } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   // All services (built-in + custom)
@@ -536,6 +563,16 @@ export function AdminPage() {
     showToast(`"${data.name}" 서비스가 추가되었습니다`);
   };
 
+  const handleUpdateService = (id: string, data: Partial<Omit<CustomServiceData, "id" | "createdAt">>) => {
+    updateService(id, data);
+    showToast(`"${data.name}" 서비스가 수정되었습니다`);
+  };
+
+  const handleUpdateBuiltIn = (id: string, data: { name?: string; description?: string }) => {
+    updateOverride(id, data);
+    showToast(`"${data.name}" 서비스가 수정되었습니다`);
+  };
+
   const handleDeleteService = (id: string) => {
     const svc = customServices.find((s) => s.id === id);
     removeService(id);
@@ -585,7 +622,7 @@ export function AdminPage() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-semibold text-sm truncate" style={{ color: "#0F172A" }}>{svc.name}</p>
+            <p className="font-semibold text-sm truncate" style={{ color: "#0F172A" }}>{getOverriddenName(svc.id, svc.name)}</p>
             <span className="font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0"
               style={{ background: "#F1F5F9", color: "#64748B" }}>:{svc.port}</span>
             <HealthDot port={svc.port} />
@@ -606,7 +643,7 @@ export function AdminPage() {
                 style={{ background: "#FFF7ED", color: "#EA580C" }}>관리자 전용</span>
             )}
           </div>
-          <p className="text-xs truncate" style={{ color: "#94A3B8" }}>{svc.description}</p>
+          <p className="text-xs truncate" style={{ color: "#94A3B8" }}>{getOverriddenDescription(svc.id, svc.description)}</p>
         </div>
 
         {/* Status selector */}
@@ -662,6 +699,28 @@ export function AdminPage() {
           >
             {isAdminOnly(svc.id) ? <EyeOff size={12} /> : <Eye size={12} />}
           </button>
+
+          {/* 편집 버튼 (모든 서비스) */}
+          {deleteConfirm !== svc.id && (
+            <button
+              onClick={() => {
+                if (isCustom) {
+                  setEditingService(customServices.find((s) => s.id === svc.id) ?? null);
+                } else {
+                  setEditingBuiltIn({
+                    id: svc.id,
+                    name: getOverriddenName(svc.id, svc.name),
+                    description: getOverriddenDescription(svc.id, svc.description),
+                  });
+                }
+              }}
+              className="p-1.5 rounded-lg transition-all hover:opacity-80"
+              style={{ background: "#EEF2FF", color: "#4F46E5" }}
+              title="수정"
+            >
+              <Pencil size={12} />
+            </button>
+          )}
 
           {deleteConfirm === svc.id ? (
             <div className="flex items-center gap-1">
@@ -978,9 +1037,23 @@ export function AdminPage() {
       {/* Modals */}
       <AnimatePresence>
         {showAddModal && (
-          <AddServiceModal
+          <ServiceFormModal
             onClose={() => setShowAddModal(false)}
             onAdd={handleAddService}
+          />
+        )}
+        {editingService && (
+          <ServiceFormModal
+            onClose={() => setEditingService(null)}
+            editData={editingService}
+            onUpdate={handleUpdateService}
+          />
+        )}
+        {editingBuiltIn && (
+          <ServiceFormModal
+            onClose={() => setEditingBuiltIn(null)}
+            editBuiltIn={editingBuiltIn}
+            onUpdateBuiltIn={handleUpdateBuiltIn}
           />
         )}
       </AnimatePresence>
