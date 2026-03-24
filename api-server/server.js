@@ -173,16 +173,15 @@ async function generateNginxConf() {
     // subpath 배포 시 경로를 인식 못 함. iframe으로 감싸면 앱은 "/"에서 실행되므로
     // 앱 코드 수정 없이 동작함.
     if (s.spaMode) {
-      const iframePage = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${s.name}</title><style>*{margin:0;padding:0}html,body{height:100%;overflow:hidden}iframe{width:100%;height:100%;border:none}</style></head><body><iframe src="http://${upstream}:${s.port}/"></iframe></body></html>`;
-      // Write iframe HTML file
-      fs.writeFileSync(path.join(NGINX_CONF_DIR, `spa-${s.id}.html`), iframePage);
+      // Escape single quotes for nginx return directive
+      const title = s.name.replace(/'/g, "\\'");
       return `# Custom (SPA iframe): ${s.name} → ${upstream}:${s.port}
 location ${p} {
     return 301 $scheme://$host${p}/;
 }
 location = ${p}/ {
-    default_type text/html;
-    alias /etc/nginx/conf.d/dynamic/spa-${s.id}.html;
+    add_header Content-Type text/html;
+    return 200 '<!DOCTYPE html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>${title}</title><style>*{margin:0;padding:0}html,body{height:100%;overflow:hidden}iframe{width:100%;height:100%;border:none}</style></head><body><iframe src="http://${upstream}:${s.port}/"></iframe></body></html>';
 }
 location ${p}/api/ {
     proxy_pass http://${upstream}:${s.port}/api/;
