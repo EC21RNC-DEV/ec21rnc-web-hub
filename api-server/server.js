@@ -171,7 +171,7 @@ async function generateNginxConf() {
     // - proxy_redirect rewrites Location headers (e.g. /login/ → /airflow/login/)
     // - sub_filter rewrites static HTML attributes (href, src, etc.)
     // - JS snippet injected into </head> patches fetch/XHR/EventSource for dynamic API calls
-    const jsSnippet = `!function(){if(window.__pathRewritten)return;window.__pathRewritten=1;var b='${p}';function r(u){return typeof u==='string'&&'/'===u[0]&&0!==u.indexOf(b)?b+u:u}var f=window.fetch;window.fetch=function(u,o){return f.call(this,r(u),o)};var x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(){arguments[1]=r(arguments[1]);return x.apply(this,arguments)};var E=window.EventSource;E&&(window.EventSource=function(u,o){return new E(r(u),o)})}();`;
+    const jsSnippet = `!function(){if(window.__pathRewritten)return;window.__pathRewritten=1;var b='${p}';function r(u){return typeof u==='string'&&'/'===u[0]&&0!==u.indexOf(b)?b+u:u}var f=window.fetch;window.fetch=function(u,o){return f.call(this,r(u),o)};var x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(){arguments[1]=r(arguments[1]);return x.apply(this,arguments)};var E=window.EventSource;E&&(window.EventSource=function(u,o){return new E(r(u),o)});var wo=window.open;window.open=function(){arguments[0]=r(arguments[0]);return wo.apply(this,arguments)};var hp=history.pushState;history.pushState=function(s,t,u){return hp.call(this,s,t,r(u))};var hr=history.replaceState;history.replaceState=function(s,t,u){return hr.call(this,s,t,r(u))}}();`;
     const rewrite = s.preservePath ? `
     proxy_redirect / ${p}/;
     sub_filter_once off;
@@ -187,6 +187,14 @@ async function generateNginxConf() {
     sub_filter "'/api/" "'${p}/api/";
     sub_filter "fetch('/" "fetch('${p}/";
     sub_filter 'fetch("/' 'fetch("${p}/';
+    sub_filter "location.href = '/" "location.href = '${p}/";
+    sub_filter 'location.href = "/' 'location.href = "${p}/';
+    sub_filter "location.href='/" "location.href='${p}/";
+    sub_filter 'location.href="/' 'location.href="${p}/';
+    sub_filter "location.replace('/" "location.replace('${p}/";
+    sub_filter 'location.replace("/' 'location.replace("${p}/';
+    sub_filter "location.assign('/" "location.assign('${p}/";
+    sub_filter 'location.assign("/' 'location.assign("${p}/';
     sub_filter "</head>" "<script>${jsSnippet}</script></head>";
     proxy_set_header Accept-Encoding "";` : "";
     const readTimeout = s.preservePath ? "300s" : "60s";
