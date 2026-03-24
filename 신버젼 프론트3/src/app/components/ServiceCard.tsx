@@ -80,7 +80,8 @@ export function ServiceCard({ service, index, compact, isFavorite, onToggleFavor
 
   const handleClick = () => {
     if (isClickable) {
-      const url = path ? `${DOMAIN}${path}` : `http://203.242.139.254:${port}`;
+      const subdomain = path ? path.replace(/^\/|\/$/g, "").replace(/_/g, "-") : null;
+      const url = subdomain ? `https://${subdomain}.ec21rnc-agent.com/` : `http://203.242.139.254:${port}`;
       window.open(url, "_blank");
     }
   };

@@ -12,6 +12,40 @@ const NGINX_CONF_DIR = path.join(__dirname, "dynamic-nginx");
 
 const UPSTREAM_HOSTS = ["172.17.0.1", "203.242.139.254"];
 
+// Built-in services (previously hardcoded in nginx.conf)
+// These are always included in subdomain generation
+const BUILTIN_SERVICES = [
+  { path: "/openwebui", upstream: "172.17.0.1", port: 8598 },
+  { path: "/emerics-news", upstream: "172.17.0.1", port: 8501 },
+  { path: "/emerics-opinion", upstream: "172.17.0.1", port: 8519 },
+  { path: "/emerics-monthly", upstream: "172.17.0.1", port: 8533 },
+  { path: "/emerics-trend", upstream: "172.17.0.1", port: 8555 },
+  { path: "/aif-newsletter", upstream: "172.17.0.1", port: 8543 },
+  { path: "/emerics-inspection", upstream: "172.17.0.1", port: 8542 },
+  { path: "/gip-daily", upstream: "172.17.0.1", port: 8525 },
+  { path: "/nuclear-bid", upstream: "172.17.0.1", port: 8513 },
+  { path: "/globecorpo-auto", upstream: "172.17.0.1", port: 8509 },
+  { path: "/cifc-issues", upstream: "172.17.0.1", port: 8540 },
+  { path: "/cifc-bidding", upstream: "172.17.0.1", port: 8541 },
+  { path: "/agri-export", upstream: "172.17.0.1", port: 8518 },
+  { path: "/issue-clustering", upstream: "172.17.0.1", port: 8591 },
+  { path: "/csf-tools", upstream: "172.17.0.1", port: 8508 },
+  { path: "/ai-tools", upstream: "172.17.0.1", port: 8515 },
+  { path: "/interview-translator", upstream: "172.17.0.1", port: 8504 },
+  { path: "/report-verification", upstream: "172.17.0.1", port: 8590 },
+  { path: "/article-extractor", upstream: "172.17.0.1", port: 8592 },
+  { path: "/prompt-hub", upstream: "172.17.0.1", port: 8599 },
+  { path: "/pdf-converter", upstream: "172.17.0.1", port: 8593 },
+  { path: "/agri-custom-market", upstream: "172.17.0.1", port: 8511 },
+  { path: "/agri-custom-compete", upstream: "172.17.0.1", port: 8514 },
+  { path: "/pet-market", upstream: "172.17.0.1", port: 8522 },
+  { path: "/pet-compete", upstream: "172.17.0.1", port: 8524 },
+  { path: "/kocca-law", upstream: "172.17.0.1", port: 8516 },
+  { path: "/kocca-content", upstream: "172.17.0.1", port: 8517 },
+  { path: "/kocca-overseas", upstream: "172.17.0.1", port: 8520 },
+  { path: "/kocca-domestic", upstream: "172.17.0.1", port: 8521 },
+];
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -164,11 +198,16 @@ async function generateNginxConf() {
   // Resolve upstream host + Host header per service in parallel
   const resolved = await Promise.all(withPath.map((s) => resolveUpstream(s.port)));
 
-  // ── 모든 서비스를 서브도메인으로 연결 ──
-  // path에서 서브도메인 자동 생성: /emerics_daily/ → emerics-daily.ec21rnc-agent.com
-  // 앱은 루트(/)에서 실행 — SPA든 일반이든 구분 없이 동작
+  // ── 모든 서비스를 서브도메인으로 연결 (빌트인 + 커스텀) ──
+  // path에서 서브도메인 자동 생성: /emerics-news/ → emerics-news.ec21rnc-agent.com
 
-  // 1) custom-services.conf: subpath → subdomain 리다이렉트
+  // Merge builtin + custom services
+  const allServices = [
+    ...BUILTIN_SERVICES.map((b) => ({ path: b.path, port: b.port, upstream: b.upstream, name: b.path.slice(1) })),
+    ...withPath.map((s, i) => ({ path: s.path.replace(/\/+$/, ""), port: s.port, upstream: resolved[i].upstream, name: s.name })),
+  ];
+
+  // 1) custom-services.conf: subpath → subdomain 리다이렉트 (커스텀만, 빌트인은 nginx.conf에서 처리)
   const redirectBlocks = withPath.map((s, i) => {
     const p = s.path.replace(/\/+$/, "");
     const subdomain = p.slice(1).replace(/_/g, "-");
@@ -187,12 +226,10 @@ location ${p}/ {
 
   fs.writeFileSync(path.join(NGINX_CONF_DIR, "custom-services.conf"), conf);
 
-  // 2) spa-subdomains.inc: 서브도메인 server 블록
-  const serverBlocks = withPath.map((s, i) => {
-    const p = s.path.replace(/\/+$/, "");
-    const subdomain = p.slice(1).replace(/_/g, "-");
-    const { upstream, hostHeader } = resolved[i];
-    return `# ${s.name} → ${subdomain}.ec21rnc-agent.com → ${upstream}:${s.port}
+  // 2) spa-subdomains.inc: 모든 서비스의 서브도메인 server 블록
+  const serverBlocks = allServices.map((s) => {
+    const subdomain = s.path.slice(1).replace(/_/g, "-");
+    return `# ${s.name} → ${subdomain}.ec21rnc-agent.com → ${s.upstream}:${s.port}
 server {
     listen 443 ssl http2;
     server_name ${subdomain}.ec21rnc-agent.com;
@@ -202,8 +239,8 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
 
     location / {
-        proxy_pass http://${upstream}:${s.port}/;
-        proxy_set_header Host ${hostHeader};
+        proxy_pass http://${s.upstream}:${s.port}/;
+        proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
