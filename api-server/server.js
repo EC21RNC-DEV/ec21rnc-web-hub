@@ -295,7 +295,7 @@ server {
     ? `# Auto-generated SPA subdomain server blocks\n\n${spaBlocks.join("\n\n")}\n`
     : "# No SPA subdomain services\n";
 
-  fs.writeFileSync(path.join(NGINX_CONF_DIR, "spa-subdomains.conf"), spaConf);
+  fs.writeFileSync(path.join(NGINX_CONF_DIR, "spa-subdomains.inc"), spaConf);
 
   // Signal nginx to reload
   fs.writeFileSync(path.join(NGINX_CONF_DIR, ".reload"), Date.now().toString());
