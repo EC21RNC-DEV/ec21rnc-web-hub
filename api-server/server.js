@@ -349,6 +349,25 @@ app.delete("/api/admin/services/custom/:id", async (req, res) => {
 });
 
 // =====================
+// Service Property Overrides API (for built-in services)
+// =====================
+
+app.get("/api/admin/services/overrides", (_req, res) => {
+  const overrides = readJSON("service-overrides.json", {});
+  res.json(overrides);
+});
+
+app.put("/api/admin/services/overrides/:id", (req, res) => {
+  const overrides = readJSON("service-overrides.json", {});
+  const { name, description } = req.body;
+  if (!overrides[req.params.id]) overrides[req.params.id] = {};
+  if (name !== undefined) overrides[req.params.id].name = name;
+  if (description !== undefined) overrides[req.params.id].description = description;
+  writeJSON("service-overrides.json", overrides);
+  res.json({ ok: true });
+});
+
+// =====================
 // Status Overrides API
 // =====================
 

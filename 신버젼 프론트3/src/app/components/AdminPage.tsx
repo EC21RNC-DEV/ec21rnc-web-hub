@@ -12,6 +12,7 @@ import { useCustomServices, type CustomServiceData } from "./useCustomServices";
 import { useServerHealth } from "./useServerHealth";
 import { useAdminOnly } from "./useAdminOnly";
 import { useHiddenServices } from "./useHiddenServices";
+import { useServiceOverrides } from "./useServiceOverrides";
 import { getIcon, iconNames } from "./icon-map";
 import { servicesData, categories, categoryMap, type ServiceData } from "./services-data";
 import type { ServiceStatus } from "./ServiceCard";
@@ -151,16 +152,22 @@ function ServiceFormModal({
   onClose,
   onAdd,
   onUpdate,
+  onUpdateBuiltIn,
   editData,
+  editBuiltIn,
 }: {
   onClose: () => void;
   onAdd?: (data: Omit<CustomServiceData, "id" | "createdAt">) => void;
   onUpdate?: (id: string, data: Partial<Omit<CustomServiceData, "id" | "createdAt">>) => void;
+  onUpdateBuiltIn?: (id: string, data: { name?: string; description?: string }) => void;
   editData?: CustomServiceData | null;
+  editBuiltIn?: { id: string; name: string; description: string } | null;
 }) {
-  const isEdit = !!editData;
-  const [name, setName] = useState(editData?.name ?? "");
-  const [description, setDescription] = useState(editData?.description ?? "");
+  const isEditCustom = !!editData;
+  const isEditBuiltIn = !!editBuiltIn;
+  const isEdit = isEditCustom || isEditBuiltIn;
+  const [name, setName] = useState(editData?.name ?? editBuiltIn?.name ?? "");
+  const [description, setDescription] = useState(editData?.description ?? editBuiltIn?.description ?? "");
   const [port, setPort] = useState(editData ? String(editData.port) : "");
   const [servicePath, setServicePath] = useState(editData?.path ?? "");
   const [category, setCategory] = useState(editData?.category ?? "tools");
@@ -169,11 +176,18 @@ function ServiceFormModal({
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [preservePath, setPreservePath] = useState(editData?.preservePath ?? false);
 
-  const isValid = name.trim() && description.trim() && port.trim() && !isNaN(Number(port));
+  const isValid = isEditBuiltIn
+    ? name.trim() && description.trim()
+    : name.trim() && description.trim() && port.trim() && !isNaN(Number(port));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) return;
+    if (isEditBuiltIn && editBuiltIn && onUpdateBuiltIn) {
+      onUpdateBuiltIn(editBuiltIn.id, { name: name.trim(), description: description.trim() });
+      onClose();
+      return;
+    }
     const pathVal = servicePath.trim();
     const data = {
       name: name.trim(),
@@ -185,7 +199,7 @@ function ServiceFormModal({
       defaultStatus: status,
       preservePath,
     };
-    if (isEdit && editData && onUpdate) {
+    if (isEditCustom && editData && onUpdate) {
       onUpdate(editData.id, data);
     } else if (onAdd) {
       onAdd(data);
@@ -251,8 +265,8 @@ function ServiceFormModal({
             />
           </div>
 
-          {/* Port + Path + Category */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Port + Path + Category (custom/add only) */}
+          {!isEditBuiltIn && <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>포트 번호 *</label>
               <input
@@ -288,10 +302,10 @@ function ServiceFormModal({
                 ))}
               </select>
             </div>
-          </div>
+          </div>}
 
           {/* Preserve Path toggle */}
-          {servicePath.trim() && (
+          {!isEditBuiltIn && servicePath.trim() && (
             <div
               className="flex items-center justify-between px-3 py-2.5 rounded-xl"
               style={{ background: "#F8FAFC", border: "1.5px solid rgba(0,0,0,0.08)" }}
@@ -320,8 +334,8 @@ function ServiceFormModal({
             </div>
           )}
 
-          {/* Status */}
-          <div>
+          {/* Status (custom/add only) */}
+          {!isEditBuiltIn && <div>
             <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>초기 상태</label>
             <div className="flex gap-2">
               {statusOptions.map((opt) => (
@@ -341,10 +355,10 @@ function ServiceFormModal({
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
 
-          {/* Icon */}
-          <div>
+          {/* Icon (custom/add only) */}
+          {!isEditBuiltIn && <div>
             <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>아이콘</label>
             <button
               type="button"
@@ -390,7 +404,7 @@ function ServiceFormModal({
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
+          </div>}
 
           {/* Submit */}
           <div className="flex gap-2 pt-2">
@@ -429,6 +443,7 @@ export function AdminPage() {
   const { customServices, addService, removeService, updateService } = useCustomServices();
   const { adminOnlyIds, toggleAdminOnly, isAdminOnly } = useAdminOnly();
   const { isHidden, toggleHidden } = useHiddenServices();
+  const { overrides: serviceOverrides, updateOverride, getOverriddenName, getOverriddenDescription } = useServiceOverrides();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<ServiceStatus | "all">("all");
@@ -436,6 +451,7 @@ export function AdminPage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingService, setEditingService] = useState<CustomServiceData | null>(null);
+  const [editingBuiltIn, setEditingBuiltIn] = useState<{ id: string; name: string; description: string } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   // All services (built-in + custom)
@@ -552,6 +568,11 @@ export function AdminPage() {
     showToast(`"${data.name}" 서비스가 수정되었습니다`);
   };
 
+  const handleUpdateBuiltIn = (id: string, data: { name?: string; description?: string }) => {
+    updateOverride(id, data);
+    showToast(`"${data.name}" 서비스가 수정되었습니다`);
+  };
+
   const handleDeleteService = (id: string) => {
     const svc = customServices.find((s) => s.id === id);
     removeService(id);
@@ -601,7 +622,7 @@ export function AdminPage() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-semibold text-sm truncate" style={{ color: "#0F172A" }}>{svc.name}</p>
+            <p className="font-semibold text-sm truncate" style={{ color: "#0F172A" }}>{getOverriddenName(svc.id, svc.name)}</p>
             <span className="font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0"
               style={{ background: "#F1F5F9", color: "#64748B" }}>:{svc.port}</span>
             <HealthDot port={svc.port} />
@@ -622,7 +643,7 @@ export function AdminPage() {
                 style={{ background: "#FFF7ED", color: "#EA580C" }}>관리자 전용</span>
             )}
           </div>
-          <p className="text-xs truncate" style={{ color: "#94A3B8" }}>{svc.description}</p>
+          <p className="text-xs truncate" style={{ color: "#94A3B8" }}>{getOverriddenDescription(svc.id, svc.description)}</p>
         </div>
 
         {/* Status selector */}
@@ -679,10 +700,20 @@ export function AdminPage() {
             {isAdminOnly(svc.id) ? <EyeOff size={12} /> : <Eye size={12} />}
           </button>
 
-          {/* 편집 버튼 (커스텀 서비스만) */}
-          {isCustom && deleteConfirm !== svc.id && (
+          {/* 편집 버튼 (모든 서비스) */}
+          {deleteConfirm !== svc.id && (
             <button
-              onClick={() => setEditingService(customServices.find((s) => s.id === svc.id) ?? null)}
+              onClick={() => {
+                if (isCustom) {
+                  setEditingService(customServices.find((s) => s.id === svc.id) ?? null);
+                } else {
+                  setEditingBuiltIn({
+                    id: svc.id,
+                    name: getOverriddenName(svc.id, svc.name),
+                    description: getOverriddenDescription(svc.id, svc.description),
+                  });
+                }
+              }}
               className="p-1.5 rounded-lg transition-all hover:opacity-80"
               style={{ background: "#EEF2FF", color: "#4F46E5" }}
               title="수정"
@@ -1016,6 +1047,13 @@ export function AdminPage() {
             onClose={() => setEditingService(null)}
             editData={editingService}
             onUpdate={handleUpdateService}
+          />
+        )}
+        {editingBuiltIn && (
+          <ServiceFormModal
+            onClose={() => setEditingBuiltIn(null)}
+            editBuiltIn={editingBuiltIn}
+            onUpdateBuiltIn={handleUpdateBuiltIn}
           />
         )}
       </AnimatePresence>
