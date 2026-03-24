@@ -313,9 +313,9 @@ function ServiceFormModal({
               style={{ background: "#F8FAFC", border: "1.5px solid rgba(0,0,0,0.08)" }}
             >
               <div>
-                <p className="text-xs font-semibold" style={{ color: "#374151" }}>URL 자동 변환</p>
+                <p className="text-xs font-semibold" style={{ color: "#374151" }}>URL 자동 변환 (일반 모드)</p>
                 <p className="text-[11px]" style={{ color: "#94A3B8" }}>
-                  Airflow 등 서브 경로를 지원하지 않는 서비스용
+                  Streamlit, Flask, Gradio, Airflow 등 서버 렌더링 앱용
                 </p>
               </div>
               <button
@@ -343,7 +343,7 @@ function ServiceFormModal({
               <div>
                 <p className="text-xs font-semibold" style={{ color: "#374151" }}>SPA 모드 (iframe)</p>
                 <p className="text-[11px]" style={{ color: "#94A3B8" }}>
-                  React, Vue 등 프론트엔드 SPA 앱용
+                  React, Vue, Next.js 등 프론트엔드 SPA 앱용
                 </p>
               </div>
               <button
@@ -364,7 +364,7 @@ function ServiceFormModal({
             </div>
             {spaMode && (
               <div className="px-3 py-2 rounded-lg text-[11px] leading-relaxed" style={{ background: "#FFFBEB", border: "1px solid #FDE68A", color: "#92400E" }}>
-                <strong>SPA 모드:</strong> 앱을 iframe으로 감싸서 루트(/)에서 실행합니다. React Router, Vue Router 등 클라이언트 라우터를 사용하는 앱은 이 모드를 켜세요. Streamlit, Flask, Gradio 등 서버 렌더링 앱은 끄세요.
+                <strong>언제 켜야 하나요?</strong> 브라우저에서 페이지 이동을 처리하는 앱 (React, Vue, Next.js 등)은 SPA 모드를 켜세요. 서버에서 페이지를 렌더링하는 앱 (Streamlit, Flask, Gradio, FastAPI 단독 등)은 위의 "URL 자동 변환"만 켜면 됩니다. 둘 다 모르겠으면 일반 모드로 먼저 시도 → 404 에러 뜨면 SPA 모드로 전환하세요.
               </div>
             )}
           </>)}
