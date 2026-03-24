@@ -270,8 +270,8 @@ server {
     listen 443 ssl http2;
     server_name ${subdomain}.ec21rnc-agent.com;
 
-    ssl_certificate /etc/letsencrypt/live/ec21rnc-agent.com-0001/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ec21rnc-agent.com-0001/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/ec21rnc-agent.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ec21rnc-agent.com/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
 
     location / {
