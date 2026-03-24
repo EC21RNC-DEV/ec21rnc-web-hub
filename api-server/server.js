@@ -210,12 +210,6 @@ async function generateNginxConf() {
     sub_filter 'axios.put("/' 'axios.put("${p}/';
     sub_filter "axios.delete('/" "axios.delete('${p}/";
     sub_filter 'axios.delete("/' 'axios.delete("${p}/';
-    sub_filter "$.ajax({url:'/" "$.ajax({url:'${p}/";
-    sub_filter '$.ajax({url:"/' '$.ajax({url:"${p}/';
-    sub_filter "$.get('/" "$.get('${p}/";
-    sub_filter '$.get("/' '$.get("${p}/';
-    sub_filter "$.post('/" "$.post('${p}/";
-    sub_filter '$.post("/' '$.post("${p}/';
     sub_filter "</head>" "<script>${jsSnippet}</script></head>";
     proxy_set_header Accept-Encoding "";` : "";
     const readTimeout = s.preservePath ? "300s" : "60s";
