@@ -164,108 +164,35 @@ async function generateNginxConf() {
   // Resolve upstream host + Host header per service in parallel
   const resolved = await Promise.all(withPath.map((s) => resolveUpstream(s.port)));
 
-  const blocks = withPath.map((s, i) => {
-    const p = s.path.replace(/\/+$/, ""); // strip trailing slash
-    const { upstream, hostHeader } = resolved[i];
+  // ── 모든 서비스를 서브도메인으로 연결 ──
+  // path에서 서브도메인 자동 생성: /emerics_daily/ → emerics-daily.ec21rnc-agent.com
+  // 앱은 루트(/)에서 실행 — SPA든 일반이든 구분 없이 동작
 
-    // ── SPA mode: serve iframe wrapper page ──
-    // React/Vue SPA는 client-side router가 window.location.pathname을 읽어서
-    // subpath 배포 시 경로를 인식 못 함. iframe으로 감싸면 앱은 "/"에서 실행되므로
-    // 앱 코드 수정 없이 동작함.
-    if (s.spaMode) {
-      // SPA subdomain: generate a separate server block
-      // The subdomain (e.g. emerics-daily.ec21rnc-agent.com) proxies to the app at root "/"
-      // No subpath issues — React Router sees "/" as expected
-      // Subdomain is derived from the path: /emerics_daily/ → emerics-daily
-      const subdomain = p.slice(1).replace(/_/g, "-");
-      return `# Custom (SPA subdomain): ${s.name} → ${subdomain}.ec21rnc-agent.com → ${upstream}:${s.port}
-# Redirect from subpath to subdomain
+  // 1) custom-services.conf: subpath → subdomain 리다이렉트
+  const redirectBlocks = withPath.map((s, i) => {
+    const p = s.path.replace(/\/+$/, "");
+    const subdomain = p.slice(1).replace(/_/g, "-");
+    return `# ${s.name} → ${subdomain}.ec21rnc-agent.com
 location ${p} {
     return 301 https://${subdomain}.ec21rnc-agent.com/;
 }
 location ${p}/ {
     return 301 https://${subdomain}.ec21rnc-agent.com/;
-}`;
-    }
-
-    // ── Normal mode: proxy with optional URL rewriting ──
-    const jsSnippet = `!function(){if(window.__pathRewritten)return;window.__pathRewritten=1;var b='${p}';function r(u){return typeof u==='string'&&'/'===u[0]&&0!==u.indexOf(b)?b+u:u}var f=window.fetch;window.fetch=function(u,o){return f.call(this,r(u),o)};var x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(){arguments[1]=r(arguments[1]);return x.apply(this,arguments)};var E=window.EventSource;E&&(window.EventSource=function(u,o){return new E(r(u),o)});var wo=window.open;window.open=function(){arguments[0]=r(arguments[0]);return wo.apply(this,arguments)};var hp=history.pushState;history.pushState=function(s,t,u){return hp.call(this,s,t,r(u))};var hr=history.replaceState;history.replaceState=function(s,t,u){return hr.call(this,s,t,r(u))};if(navigator.sendBeacon){var sb=navigator.sendBeacon.bind(navigator);navigator.sendBeacon=function(u,d){return sb(r(u),d)}}var WS=window.WebSocket;WS&&(window.WebSocket=function(u,p2){return p2?new WS(r(u),p2):new WS(r(u))});var Wk=window.Worker;Wk&&(window.Worker=function(u,o){return new Wk(r(u),o)});if(window.jQuery){var aj=jQuery.ajax;jQuery.ajax=function(u,s2){if(typeof u==='string'){u=r(u)}else if(u&&u.url){u.url=r(u.url)}return aj.call(this,u,s2)}}if(window.axios){var ai=window.axios.interceptors;ai&&ai.request&&ai.request.use(function(c){if(c.url)c.url=r(c.url);return c})}}();`;
-    const rewrite = s.preservePath ? `
-    proxy_redirect / ${p}/;
-    sub_filter_once off;
-    sub_filter_types text/html application/javascript text/css;
-    sub_filter 'href="/' 'href="${p}/';
-    sub_filter "href='/" "href='${p}/";
-    sub_filter 'src="/' 'src="${p}/';
-    sub_filter "src='/" "src='${p}/";
-    sub_filter 'action="/' 'action="${p}/';
-    sub_filter "action='/" "action='${p}/";
-    sub_filter 'url(/' 'url(${p}/';
-    sub_filter '"/api/' '"${p}/api/';
-    sub_filter "'/api/" "'${p}/api/";
-    sub_filter "fetch('/" "fetch('${p}/";
-    sub_filter 'fetch("/' 'fetch("${p}/';
-    sub_filter "location.href = '/" "location.href = '${p}/";
-    sub_filter 'location.href = "/' 'location.href = "${p}/';
-    sub_filter "location.href='/" "location.href='${p}/";
-    sub_filter 'location.href="/' 'location.href="${p}/';
-    sub_filter "location.replace('/" "location.replace('${p}/";
-    sub_filter 'location.replace("/' 'location.replace("${p}/';
-    sub_filter "location.assign('/" "location.assign('${p}/";
-    sub_filter 'location.assign("/' 'location.assign("${p}/';
-    sub_filter "location = '/" "location = '${p}/";
-    sub_filter 'location = "/' 'location = "${p}/';
-    sub_filter "location.pathname = '/" "location.pathname = '${p}/";
-    sub_filter 'location.pathname = "/' 'location.pathname = "${p}/';
-    sub_filter "window.open('/" "window.open('${p}/";
-    sub_filter 'window.open("/' 'window.open("${p}/';
-    sub_filter "axios.get('/" "axios.get('${p}/";
-    sub_filter 'axios.get("/' 'axios.get("${p}/';
-    sub_filter "axios.post('/" "axios.post('${p}/";
-    sub_filter 'axios.post("/' 'axios.post("${p}/';
-    sub_filter "axios.put('/" "axios.put('${p}/";
-    sub_filter 'axios.put("/' 'axios.put("${p}/';
-    sub_filter "axios.delete('/" "axios.delete('${p}/";
-    sub_filter 'axios.delete("/' 'axios.delete("${p}/';
-    sub_filter "</head>" "<script>${jsSnippet}</script></head>";
-    proxy_set_header Accept-Encoding "";` : "";
-    const readTimeout = s.preservePath ? "300s" : "60s";
-    return `# Custom: ${s.name} → ${upstream}:${s.port} (Host: ${hostHeader}${s.preservePath ? ", rewriteUrls" : ""})
-location ${p} {
-    return 301 $scheme://$host${p}/;
-}
-location ${p}/ {
-    proxy_pass http://${upstream}:${s.port}/;
-    proxy_set_header Host ${hostHeader};
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Port $server_port;
-    proxy_set_header X-Forwarded-Prefix ${p};
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_connect_timeout 60s;
-    proxy_send_timeout 60s;
-    proxy_read_timeout ${readTimeout};
-    proxy_buffering off;${rewrite}
 }`;
   });
 
-  const conf = blocks.length > 0
-    ? `# Auto-generated by admin API - DO NOT EDIT\n\n${blocks.join("\n\n")}\n`
+  const conf = redirectBlocks.length > 0
+    ? `# Auto-generated by admin API - DO NOT EDIT\n\n${redirectBlocks.join("\n\n")}\n`
     : "# No custom services with paths\n";
 
   fs.writeFileSync(path.join(NGINX_CONF_DIR, "custom-services.conf"), conf);
 
-  // Generate subdomain server blocks for SPA services
-  const spaServices = withPath.filter((s) => s.spaMode);
-  const spaBlocks = spaServices.map((s, idx) => {
+  // 2) spa-subdomains.inc: 서브도메인 server 블록
+  const serverBlocks = withPath.map((s, i) => {
     const p = s.path.replace(/\/+$/, "");
     const subdomain = p.slice(1).replace(/_/g, "-");
-    const { upstream, hostHeader } = resolved[withPath.indexOf(s)];
-    return `# SPA subdomain: ${s.name} → ${subdomain}.ec21rnc-agent.com
+    const { upstream, hostHeader } = resolved[i];
+    return `# ${s.name} → ${subdomain}.ec21rnc-agent.com → ${upstream}:${s.port}
 server {
     listen 443 ssl http2;
     server_name ${subdomain}.ec21rnc-agent.com;
@@ -291,15 +218,15 @@ server {
 }`;
   });
 
-  const spaConf = spaBlocks.length > 0
-    ? `# Auto-generated SPA subdomain server blocks\n\n${spaBlocks.join("\n\n")}\n`
-    : "# No SPA subdomain services\n";
+  const subdomainConf = serverBlocks.length > 0
+    ? `# Auto-generated subdomain server blocks\n\n${serverBlocks.join("\n\n")}\n`
+    : "# No subdomain services\n";
 
-  fs.writeFileSync(path.join(NGINX_CONF_DIR, "spa-subdomains.inc"), spaConf);
+  fs.writeFileSync(path.join(NGINX_CONF_DIR, "spa-subdomains.inc"), subdomainConf);
 
   // Signal nginx to reload
   fs.writeFileSync(path.join(NGINX_CONF_DIR, ".reload"), Date.now().toString());
-  console.log(`[nginx] Generated config for ${blocks.length} custom service(s), ${spaBlocks.length} SPA subdomain(s)`);
+  console.log(`[nginx] Generated config for ${serverBlocks.length} subdomain service(s)`);
 }
 
 // Debug: show generated nginx config

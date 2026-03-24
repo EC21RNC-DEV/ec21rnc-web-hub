@@ -198,8 +198,8 @@ function ServiceFormModal({
       category,
       iconName,
       defaultStatus: status,
-      preservePath: spaMode ? false : preservePath,
-      spaMode,
+      preservePath: false,
+      spaMode: false,
     };
     if (isEditCustom && editData && onUpdate) {
       onUpdate(editData.id, data);
@@ -306,68 +306,18 @@ function ServiceFormModal({
             </div>
           </div>}
 
-          {/* Preserve Path + SPA Mode toggles */}
-          {!isEditBuiltIn && servicePath.trim() && (<>
-            <div
-              className="flex items-center justify-between px-3 py-2.5 rounded-xl"
-              style={{ background: "#F8FAFC", border: "1.5px solid rgba(0,0,0,0.08)" }}
-            >
-              <div>
-                <p className="text-xs font-semibold" style={{ color: "#374151" }}>URL 자동 변환 (일반 모드)</p>
-                <p className="text-[11px]" style={{ color: "#94A3B8" }}>
-                  Streamlit, Flask, Gradio, Airflow 등 서버 렌더링 앱용
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreservePath(!preservePath)}
-                className="relative w-10 h-5.5 rounded-full transition-all"
-                style={{
-                  background: preservePath && !spaMode ? "#4F46E5" : "#CBD5E1",
-                  width: "40px",
-                  height: "22px",
-                  opacity: spaMode ? 0.4 : 1,
-                  pointerEvents: spaMode ? "none" : "auto",
-                }}
-              >
-                <div
-                  className="absolute top-0.5 w-[18px] h-[18px] rounded-full bg-white shadow transition-all"
-                  style={{ left: preservePath && !spaMode ? "20px" : "2px" }}
-                />
-              </button>
+          {/* Subdomain info */}
+          {!isEditBuiltIn && servicePath.trim() && (
+            <div className="px-3 py-2.5 rounded-xl" style={{ background: "#EEF2FF", border: "1.5px solid #C7D2FE" }}>
+              <p className="text-xs font-semibold" style={{ color: "#374151" }}>서브도메인 자동 생성</p>
+              <p className="text-[11px] mt-1" style={{ color: "#6366F1" }}>
+                {servicePath.trim().replace(/^\/|\/$/g, "").replace(/_/g, "-")}.ec21rnc-agent.com
+              </p>
+              <p className="text-[11px] mt-0.5" style={{ color: "#94A3B8" }}>
+                서비스가 독립 서브도메인으로 연결됩니다. 앱 종류(React, Streamlit 등)에 상관없이 동작합니다.
+              </p>
             </div>
-            <div
-              className="flex items-center justify-between px-3 py-2.5 rounded-xl"
-              style={{ background: spaMode ? "#EEF2FF" : "#F8FAFC", border: spaMode ? "1.5px solid #C7D2FE" : "1.5px solid rgba(0,0,0,0.08)" }}
-            >
-              <div>
-                <p className="text-xs font-semibold" style={{ color: "#374151" }}>SPA 모드 (iframe)</p>
-                <p className="text-[11px]" style={{ color: "#94A3B8" }}>
-                  React, Vue, Next.js 등 프론트엔드 SPA 앱용
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSpaMode(!spaMode)}
-                className="relative rounded-full transition-all"
-                style={{
-                  background: spaMode ? "#4F46E5" : "#CBD5E1",
-                  width: "40px",
-                  height: "22px",
-                }}
-              >
-                <div
-                  className="absolute top-0.5 w-[18px] h-[18px] rounded-full bg-white shadow transition-all"
-                  style={{ left: spaMode ? "20px" : "2px" }}
-                />
-              </button>
-            </div>
-            {spaMode && (
-              <div className="px-3 py-2 rounded-lg text-[11px] leading-relaxed" style={{ background: "#FFFBEB", border: "1px solid #FDE68A", color: "#92400E" }}>
-                <strong>언제 켜야 하나요?</strong> 브라우저에서 페이지 이동을 처리하는 앱 (React, Vue, Next.js 등)은 SPA 모드를 켜세요. 서버에서 페이지를 렌더링하는 앱 (Streamlit, Flask, Gradio, FastAPI 단독 등)은 위의 "URL 자동 변환"만 켜면 됩니다. 둘 다 모르겠으면 일반 모드로 먼저 시도 → 404 에러 뜨면 SPA 모드로 전환하세요.
-              </div>
-            )}
-          </>)}
+          )}
 
           {/* Status (custom/add only) */}
           {!isEditBuiltIn && <div>
