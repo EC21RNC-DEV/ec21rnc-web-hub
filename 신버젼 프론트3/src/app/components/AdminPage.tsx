@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import {
   ArrowLeft, Search, X, RotateCcw, CheckCircle2, AlertTriangle,
   XCircle, Server, Shield, ChevronDown, Plus, Trash2, Lock,
-  Eye, EyeOff, LogOut, Key, RefreshCw, Wifi, WifiOff, Loader2, CloudOff,
+  Eye, EyeOff, LogOut, Key, RefreshCw, Wifi, WifiOff, Loader2, CloudOff, Pencil,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Link } from "react-router";
@@ -146,23 +146,28 @@ function LoginScreen({ onLogin }: { onLogin: (pw: string) => Promise<boolean> })
   );
 }
 
-// ── Add Service Modal ──
-function AddServiceModal({
+// ── Add/Edit Service Modal ──
+function ServiceFormModal({
   onClose,
   onAdd,
+  onUpdate,
+  editData,
 }: {
   onClose: () => void;
-  onAdd: (data: Omit<CustomServiceData, "id" | "createdAt">) => void;
+  onAdd?: (data: Omit<CustomServiceData, "id" | "createdAt">) => void;
+  onUpdate?: (id: string, data: Partial<Omit<CustomServiceData, "id" | "createdAt">>) => void;
+  editData?: CustomServiceData | null;
 }) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [port, setPort] = useState("");
-  const [servicePath, setServicePath] = useState("");
-  const [category, setCategory] = useState("tools");
-  const [iconName, setIconName] = useState("Server");
-  const [status, setStatus] = useState<ServiceStatus>("online");
+  const isEdit = !!editData;
+  const [name, setName] = useState(editData?.name ?? "");
+  const [description, setDescription] = useState(editData?.description ?? "");
+  const [port, setPort] = useState(editData ? String(editData.port) : "");
+  const [servicePath, setServicePath] = useState(editData?.path ?? "");
+  const [category, setCategory] = useState(editData?.category ?? "tools");
+  const [iconName, setIconName] = useState(editData?.iconName ?? "Server");
+  const [status, setStatus] = useState<ServiceStatus>(editData?.defaultStatus ?? "online");
   const [showIconPicker, setShowIconPicker] = useState(false);
-  const [preservePath, setPreservePath] = useState(false);
+  const [preservePath, setPreservePath] = useState(editData?.preservePath ?? false);
 
   const isValid = name.trim() && description.trim() && port.trim() && !isNaN(Number(port));
 
@@ -170,7 +175,7 @@ function AddServiceModal({
     e.preventDefault();
     if (!isValid) return;
     const pathVal = servicePath.trim();
-    onAdd({
+    const data = {
       name: name.trim(),
       description: description.trim(),
       port: Number(port),
@@ -179,7 +184,12 @@ function AddServiceModal({
       iconName,
       defaultStatus: status,
       preservePath,
-    });
+    };
+    if (isEdit && editData && onUpdate) {
+      onUpdate(editData.id, data);
+    } else if (onAdd) {
+      onAdd(data);
+    }
     onClose();
   };
 
@@ -205,8 +215,8 @@ function AddServiceModal({
       >
         <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #F1F5F9" }}>
           <div className="flex items-center gap-2">
-            <Plus size={16} style={{ color: "#4F46E5" }} />
-            <h2 className="font-bold text-sm" style={{ color: "#0F172A" }}>새 서비스 추가</h2>
+            {isEdit ? <Pencil size={16} style={{ color: "#4F46E5" }} /> : <Plus size={16} style={{ color: "#4F46E5" }} />}
+            <h2 className="font-bold text-sm" style={{ color: "#0F172A" }}>{isEdit ? "서비스 수정" : "새 서비스 추가"}</h2>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg" style={{ color: "#94A3B8" }}>
             <X size={16} />
@@ -403,7 +413,7 @@ function AddServiceModal({
                 cursor: isValid ? "pointer" : "not-allowed",
               }}
             >
-              추가
+              {isEdit ? "저장" : "추가"}
             </button>
           </div>
         </form>
@@ -416,7 +426,7 @@ function AddServiceModal({
 export function AdminPage() {
   const { isAuthenticated, login, logout } = useAdminAuth();
   const { overrides, setStatus, resetStatus, resetAll, getStatus } = useServiceStatus();
-  const { customServices, addService, removeService } = useCustomServices();
+  const { customServices, addService, removeService, updateService } = useCustomServices();
   const { adminOnlyIds, toggleAdminOnly, isAdminOnly } = useAdminOnly();
   const { isHidden, toggleHidden } = useHiddenServices();
 
@@ -425,6 +435,7 @@ export function AdminPage() {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingService, setEditingService] = useState<CustomServiceData | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   // All services (built-in + custom)
@@ -534,6 +545,11 @@ export function AdminPage() {
   const handleAddService = (data: Omit<CustomServiceData, "id" | "createdAt">) => {
     addService(data);
     showToast(`"${data.name}" 서비스가 추가되었습니다`);
+  };
+
+  const handleUpdateService = (id: string, data: Partial<Omit<CustomServiceData, "id" | "createdAt">>) => {
+    updateService(id, data);
+    showToast(`"${data.name}" 서비스가 수정되었습니다`);
   };
 
   const handleDeleteService = (id: string) => {
@@ -662,6 +678,18 @@ export function AdminPage() {
           >
             {isAdminOnly(svc.id) ? <EyeOff size={12} /> : <Eye size={12} />}
           </button>
+
+          {/* 편집 버튼 (커스텀 서비스만) */}
+          {isCustom && deleteConfirm !== svc.id && (
+            <button
+              onClick={() => setEditingService(customServices.find((s) => s.id === svc.id) ?? null)}
+              className="p-1.5 rounded-lg transition-all hover:opacity-80"
+              style={{ background: "#EEF2FF", color: "#4F46E5" }}
+              title="수정"
+            >
+              <Pencil size={12} />
+            </button>
+          )}
 
           {deleteConfirm === svc.id ? (
             <div className="flex items-center gap-1">
@@ -978,9 +1006,16 @@ export function AdminPage() {
       {/* Modals */}
       <AnimatePresence>
         {showAddModal && (
-          <AddServiceModal
+          <ServiceFormModal
             onClose={() => setShowAddModal(false)}
             onAdd={handleAddService}
+          />
+        )}
+        {editingService && (
+          <ServiceFormModal
+            onClose={() => setEditingService(null)}
+            editData={editingService}
+            onUpdate={handleUpdateService}
           />
         )}
       </AnimatePresence>
