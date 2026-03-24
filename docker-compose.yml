@@ -23,7 +23,7 @@ services:
       - ./html:/usr/share/nginx/html:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
-      - ./dynamic-nginx:/etc/nginx/conf.d/dynamic:ro
+      - ./dynamic-nginx:/etc/nginx/conf.d/dynamic
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # 2초마다 reload 신호 확인 + 6시간마다 인증서 갱신 reload
@@ -32,8 +32,14 @@ services:
         while :; do sleep 6h && nginx -s reload; done &
         while :; do
           if [ -f /etc/nginx/conf.d/dynamic/.reload ]; then
-            nginx -s reload && rm -f /etc/nginx/conf.d/dynamic/.reload;
-            sleep 60;
+            if nginx -t 2>&1; then
+              nginx -s reload;
+              echo "[reload] nginx reloaded successfully";
+            else
+              echo "[reload] ERROR: nginx config test failed";
+            fi;
+            rm -f /etc/nginx/conf.d/dynamic/.reload || true;
+            sleep 10;
           else
             sleep 2;
           fi;
