@@ -60,10 +60,30 @@ services:
       - /etc/letsencrypt:/etc/letsencrypt
       - /var/lib/letsencrypt:/var/lib/letsencrypt
       - ./certbot/www:/var/www/certbot
-    # 12시간마다 인증서 갱신 시도
+      - ./dynamic-nginx:/var/lib/certbot/signals
     entrypoint: >-
       /bin/sh -c '
         trap exit TERM;
+        echo "[certbot] Starting with auto-renewal + domain watcher...";
+        while :; do
+          if [ -f /var/lib/certbot/signals/.renew-ssl ]; then
+            echo "[certbot] New domains detected, renewing cert...";
+            DOMAINS=$$(cat /var/lib/certbot/signals/.renew-ssl);
+            if certbot certonly --webroot --webroot-path=/var/www/certbot
+              --cert-name ec21rnc-agent.com
+              --email sean@ec21rnc.com --agree-tos --no-eff-email
+              --non-interactive --force-renewal $$DOMAINS; then
+              echo "[certbot] Certificate renewed successfully";
+              touch /var/lib/certbot/signals/.reload;
+            else
+              echo "[certbot] Certificate renewal FAILED";
+            fi;
+            rm -f /var/lib/certbot/signals/.renew-ssl;
+            sleep 30;
+          else
+            sleep 5;
+          fi;
+        done &
         while :; do
           certbot renew --webroot --webroot-path=/var/www/certbot
             --email sean@ec21rnc.com --agree-tos --no-eff-email;

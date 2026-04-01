@@ -2,13 +2,13 @@ import { useState, useMemo } from "react";
 import {
   ArrowLeft, Search, X, RotateCcw, CheckCircle2, AlertTriangle,
   XCircle, Server, Shield, ChevronDown, Plus, Trash2, Lock,
-  Eye, EyeOff, LogOut, Key, RefreshCw, Wifi, WifiOff, Loader2, CloudOff, Pencil,
+  Eye, EyeOff, LogOut, Key, RefreshCw, Wifi, WifiOff, Loader2, CloudOff, Pencil, Layers,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Link } from "react-router";
 import { useServiceStatus } from "./useServiceStatus";
 import { useAdminAuth } from "./useAdminAuth";
-import { useCustomServices, type CustomServiceData } from "./useCustomServices";
+import { useCustomServices, type CustomServiceData, type PortEntry } from "./useCustomServices";
 import { useServerHealth } from "./useServerHealth";
 import { useAdminOnly } from "./useAdminOnly";
 import { useHiddenServices } from "./useHiddenServices";
@@ -168,18 +168,37 @@ function ServiceFormModal({
   const isEdit = isEditCustom || isEditBuiltIn;
   const [name, setName] = useState(editData?.name ?? editBuiltIn?.name ?? "");
   const [description, setDescription] = useState(editData?.description ?? editBuiltIn?.description ?? "");
-  const [port, setPort] = useState(editData ? String(editData.port) : "");
-  const [servicePath, setServicePath] = useState(editData?.path ?? "");
   const [category, setCategory] = useState(editData?.category ?? "tools");
   const [iconName, setIconName] = useState(editData?.iconName ?? "Server");
   const [status, setStatus] = useState<ServiceStatus>(editData?.defaultStatus ?? "online");
   const [showIconPicker, setShowIconPicker] = useState(false);
-  const [preservePath, setPreservePath] = useState(editData?.preservePath ?? false);
-  const [spaMode, setSpaMode] = useState(editData?.spaMode ?? false);
 
+  // Multi-port entries
+  const initPorts = (): PortEntry[] => {
+    if (editData?.ports && editData.ports.length > 0) return editData.ports;
+    if (editData?.port) return [{ port: editData.port, label: editData.name, path: editData.path }];
+    return [{ port: 0, label: "", path: "" }];
+  };
+  const [portEntries, setPortEntries] = useState<PortEntry[]>(initPorts);
+
+  const addPortEntry = () => setPortEntries((prev) => [...prev, { port: 0, label: "", path: "" }]);
+  const removePortEntry = (idx: number) => setPortEntries((prev) => prev.filter((_, i) => i !== idx));
+  const updatePortEntry = (idx: number, field: keyof PortEntry, value: string | number) => {
+    setPortEntries((prev) => prev.map((entry, i) => i === idx ? { ...entry, [field]: value } : entry));
+  };
+
+  // Auto-generate path from label
+  const autoPath = (label: string) => {
+    const slug = label.trim().toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9가-힣\-]/g, "");
+    return slug ? `/${slug}` : "";
+  };
+
+  const portsValid = portEntries.every((e) => e.port > 0 && e.label.trim());
   const isValid = isEditBuiltIn
     ? name.trim() && description.trim()
-    : name.trim() && description.trim() && port.trim() && !isNaN(Number(port));
+    : name.trim() && description.trim() && portEntries.length > 0 && portsValid;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,12 +208,21 @@ function ServiceFormModal({
       onClose();
       return;
     }
-    const pathVal = servicePath.trim();
+
+    // Build ports with auto-path
+    const cleanPorts = portEntries.map((e) => ({
+      port: Number(e.port),
+      label: e.label.trim(),
+      path: e.path?.trim() || autoPath(e.label),
+    }));
+
+    const isSingle = cleanPorts.length === 1;
     const data = {
       name: name.trim(),
       description: description.trim(),
-      port: Number(port),
-      ...(pathVal ? { path: pathVal.startsWith("/") ? pathVal : `/${pathVal}` } : {}),
+      port: cleanPorts[0].port,
+      path: isSingle ? (cleanPorts[0].path.startsWith("/") ? cleanPorts[0].path : `/${cleanPorts[0].path}`) : undefined,
+      ports: isSingle ? undefined : cleanPorts,
       category,
       iconName,
       defaultStatus: status,
@@ -267,54 +295,124 @@ function ServiceFormModal({
             />
           </div>
 
-          {/* Port + Path + Category (custom/add only) */}
-          {!isEditBuiltIn && <div className="grid grid-cols-3 gap-3">
+          {/* Port entries + Category (custom/add only) */}
+          {!isEditBuiltIn && (
             <div>
-              <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>포트 번호 *</label>
-              <input
-                type="number"
-                value={port}
-                onChange={(e) => setPort(e.target.value)}
-                placeholder="예: 8600"
-                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
-                style={{ background: "#F8FAFC", border: "1.5px solid rgba(0,0,0,0.08)", color: "#1E293B" }}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>도메인 경로</label>
-              <input
-                type="text"
-                value={servicePath}
-                onChange={(e) => setServicePath(e.target.value)}
-                placeholder="예: /my-service/"
-                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
-                style={{ background: "#F8FAFC", border: "1.5px solid rgba(0,0,0,0.08)", color: "#1E293B" }}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>카테고리</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none appearance-none cursor-pointer"
-                style={{ background: "#F8FAFC", border: "1.5px solid rgba(0,0,0,0.08)", color: "#1E293B" }}
-              >
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold" style={{ color: "#374151" }}>
+                    서버 포트 목록 *
+                  </label>
+                  {portEntries.length > 1 && (
+                    <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
+                      style={{ background: "#EEF2FF", color: "#4F46E5" }}>
+                      <Layers size={10} />
+                      {portEntries.length}개 서버 그룹
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={addPortEntry}
+                  className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg transition-all hover:opacity-80"
+                  style={{ background: "#4F46E5", color: "#FFF" }}
+                >
+                  <Plus size={12} />
+                  포트 추가
+                </button>
+              </div>
 
-          {/* Subdomain info */}
-          {!isEditBuiltIn && servicePath.trim() && (
+              <div className="space-y-2">
+                {portEntries.map((entry, idx) => (
+                  <div key={idx} className="flex items-start gap-2 p-3 rounded-xl"
+                    style={{ background: "#F8FAFC", border: "1px solid rgba(0,0,0,0.06)" }}>
+                    <div className="flex-1 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-semibold mb-1 block" style={{ color: "#94A3B8" }}>서비스명 *</label>
+                          <input
+                            type="text"
+                            value={entry.label}
+                            onChange={(e) => updatePortEntry(idx, "label", e.target.value)}
+                            placeholder="예: EMERiCs 뉴스브리핑"
+                            className="w-full px-2.5 py-2 rounded-lg text-sm outline-none"
+                            style={{ background: "#FFFFFF", border: "1.5px solid rgba(0,0,0,0.08)", color: "#1E293B" }}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-semibold mb-1 block" style={{ color: "#94A3B8" }}>포트 *</label>
+                          <input
+                            type="number"
+                            value={entry.port || ""}
+                            onChange={(e) => updatePortEntry(idx, "port", Number(e.target.value))}
+                            placeholder="8501"
+                            className="w-full px-2.5 py-2 rounded-lg text-sm outline-none"
+                            style={{ background: "#FFFFFF", border: "1.5px solid rgba(0,0,0,0.08)", color: "#1E293B" }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold mb-1 block" style={{ color: "#94A3B8" }}>
+                          경로 (비워두면 자동 생성)
+                        </label>
+                        <input
+                          type="text"
+                          value={entry.path || ""}
+                          onChange={(e) => updatePortEntry(idx, "path", e.target.value)}
+                          placeholder={entry.label ? autoPath(entry.label) || "/auto-path" : "/my-service"}
+                          className="w-full px-2.5 py-2 rounded-lg text-sm outline-none"
+                          style={{ background: "#FFFFFF", border: "1.5px solid rgba(0,0,0,0.08)", color: "#1E293B" }}
+                        />
+                        {(entry.path?.trim() || entry.label.trim()) && (
+                          <p className="text-[10px] mt-1" style={{ color: "#6366F1" }}>
+                            {(entry.path?.trim() || autoPath(entry.label)).replace(/^\/|\/$/g, "").replace(/_/g, "-")}.ec21rnc-agent.com
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {portEntries.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removePortEntry(idx)}
+                        className="p-1.5 rounded-lg mt-5 transition-colors hover:bg-red-50"
+                        style={{ color: "#EF4444" }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Category selector */}
+              <div className="mt-3">
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>카테고리</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none appearance-none cursor-pointer"
+                  style={{ background: "#F8FAFC", border: "1.5px solid rgba(0,0,0,0.08)", color: "#1E293B" }}
+                >
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Multi-port info banner */}
+          {!isEditBuiltIn && portEntries.length > 1 && (
             <div className="px-3 py-2.5 rounded-xl" style={{ background: "#EEF2FF", border: "1.5px solid #C7D2FE" }}>
-              <p className="text-xs font-semibold" style={{ color: "#374151" }}>서브도메인 자동 생성</p>
+              <p className="text-xs font-semibold" style={{ color: "#374151" }}>
+                <Layers size={12} className="inline mr-1" style={{ verticalAlign: "middle" }} />
+                다중 서버 그룹
+              </p>
               <p className="text-[11px] mt-1" style={{ color: "#6366F1" }}>
-                {servicePath.trim().replace(/^\/|\/$/g, "").replace(/_/g, "-")}.ec21rnc-agent.com
+                카드 클릭 시 {portEntries.length}개 서버 중 선택 팝업이 표시됩니다.
               </p>
               <p className="text-[11px] mt-0.5" style={{ color: "#94A3B8" }}>
-                서비스가 독립 서브도메인으로 연결됩니다. 앱 종류(React, Streamlit 등)에 상관없이 동작합니다.
+                각 서버는 독립 서브도메인으로 연결됩니다.
               </p>
             </div>
           )}
@@ -453,7 +551,18 @@ export function AdminPage() {
   }, [customServices]);
 
   // All port infos for health check (API server checks directly + nginx fallback)
-  const allPortInfos = useMemo(() => allServicesData.map((s: any) => ({ port: s.port, path: s.path })), [allServicesData]);
+  const allPortInfos = useMemo(() => {
+    const infos: { port: number; path?: string }[] = [];
+    for (const s of allServicesData) {
+      const cs = s as any;
+      if (cs.ports && Array.isArray(cs.ports) && cs.ports.length > 1) {
+        for (const p of cs.ports) infos.push({ port: p.port, path: p.path });
+      } else {
+        infos.push({ port: s.port, path: s.path });
+      }
+    }
+    return infos;
+  }, [allServicesData]);
   const { getHealth, checkAll, lastChecked, isChecking } = useServerHealth(allPortInfos);
 
   // Merged category map
@@ -608,8 +717,16 @@ export function AdminPage() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-sm truncate" style={{ color: "#0F172A" }}>{getOverriddenName(svc.id, svc.name)}</p>
-            <span className="font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0"
-              style={{ background: "#F1F5F9", color: "#64748B" }}>:{svc.port}</span>
+            {isCustom && (svc as CustomServiceData).ports && (svc as CustomServiceData).ports!.length > 1 ? (
+              <span className="flex items-center gap-1 font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                style={{ background: "#EEF2FF", color: "#4F46E5" }}>
+                <Layers size={10} />
+                {(svc as CustomServiceData).ports!.length}개 서버
+              </span>
+            ) : (
+              <span className="font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                style={{ background: "#F1F5F9", color: "#64748B" }}>:{svc.port}</span>
+            )}
             <HealthDot port={svc.port} />
             {isOverridden && (
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0"

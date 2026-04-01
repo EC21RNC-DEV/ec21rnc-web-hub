@@ -3,12 +3,19 @@ import type { ServiceStatus } from "./ServiceCard";
 
 const API_BASE = "/api/admin/services/custom";
 
+export interface PortEntry {
+  port: number;
+  label: string;
+  path?: string; // auto-generated from label if not set
+}
+
 export interface CustomServiceData {
   id: string;
   name: string;
   description: string;
   port: number;
   path?: string;
+  ports?: PortEntry[]; // multi-port group
   defaultStatus: ServiceStatus;
   iconName: string; // key to icon map
   category: string; // category id

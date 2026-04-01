@@ -50,6 +50,7 @@ export function Dashboard() {
         description: s.description,
         port: s.port,
         path: s.path,
+        ports: s.ports,
         status: getStatus(s.id, s.defaultStatus),
         icon: getIcon(s.iconName),
       }));
@@ -70,7 +71,19 @@ export function Dashboard() {
   }, [customCategoryMap]);
 
   // All port infos for health check (API server checks directly + nginx fallback)
-  const allPortInfos = useMemo(() => allServices.map((s) => ({ port: s.port, path: s.path })), [allServices]);
+  const allPortInfos = useMemo(() => {
+    const infos: { port: number; path?: string }[] = [];
+    for (const s of allServices) {
+      if (s.ports && s.ports.length > 1) {
+        for (const p of s.ports) {
+          infos.push({ port: p.port, path: p.path });
+        }
+      } else {
+        infos.push({ port: s.port, path: s.path });
+      }
+    }
+    return infos;
+  }, [allServices]);
   const { getHealth, checkAll, lastChecked, isChecking, networkAvailable } = useServerHealth(allPortInfos);
 
   const onlineCount = allServices.filter((s) => s.status === "online").length;
@@ -217,7 +230,7 @@ export function Dashboard() {
                 {favoriteServices.map((svc, i) => (
                   <ServiceCard key={svc.id} service={svc} index={i} compact
                     isFavorite onToggleFavorite={toggleFavorite}
-                    health={getHealth(svc.port)} />
+                    health={getHealth(svc.port)} getHealth={getHealth} />
                 ))}
               </div>
             ) : (
@@ -368,7 +381,7 @@ export function Dashboard() {
                       {catServices.map((service, idx) => (
                         <ServiceCard key={service.id} service={service} index={idx}
                           isFavorite={isFavorite(service.id)} onToggleFavorite={toggleFavorite}
-                          health={getHealth(service.port)} />
+                          health={getHealth(service.port)} getHealth={getHealth} />
                       ))}
                     </div>
                   </motion.section>

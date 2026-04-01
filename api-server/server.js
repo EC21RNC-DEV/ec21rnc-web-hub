@@ -201,11 +201,23 @@ async function generateNginxConf() {
   // ── 모든 서비스를 서브도메인으로 연결 (빌트인 + 커스텀) ──
   // path에서 서브도메인 자동 생성: /emerics-news/ → emerics-news.ec21rnc-agent.com
 
-  // Merge builtin + custom services
+  // Merge builtin + custom services (expand multi-port groups into individual entries)
   const allServices = [
     ...BUILTIN_SERVICES.map((b) => ({ path: b.path, port: b.port, upstream: b.upstream, name: b.path.slice(1) })),
-    ...withPath.map((s, i) => ({ path: s.path.replace(/\/+$/, ""), port: s.port, upstream: resolved[i].upstream, name: s.name })),
   ];
+  for (const s of services) {
+    if (s.ports && Array.isArray(s.ports) && s.ports.length > 1) {
+      // Multi-port group: each port entry gets its own subdomain
+      for (const p of s.ports) {
+        const pPath = (p.path || `/${p.label}`).replace(/\/+$/, "");
+        allServices.push({ path: pPath.startsWith("/") ? pPath : `/${pPath}`, port: Number(p.port), upstream: UPSTREAM_HOSTS[0], name: p.label });
+      }
+    } else if (s.path && s.port) {
+      const idx = withPath.indexOf(s);
+      const upstream = idx >= 0 && resolved[idx] ? resolved[idx].upstream : UPSTREAM_HOSTS[0];
+      allServices.push({ path: s.path.replace(/\/+$/, ""), port: s.port, upstream, name: s.name });
+    }
+  }
 
   // 1) custom-services.conf: subpath → subdomain 리다이렉트 (커스텀만, 빌트인은 nginx.conf에서 처리)
   const redirectBlocks = withPath.map((s, i) => {
@@ -261,6 +273,24 @@ server {
 
   fs.writeFileSync(path.join(NGINX_CONF_DIR, "spa-subdomains.inc"), subdomainConf);
 
+  // --- SSL 인증서 자동 갱신 (도메인 목록 변경 시) ---
+  const currentDomains = ['ec21rnc-agent.com'];
+  allServices.forEach(s => {
+    const subdomain = s.path.slice(1).replace(/_/g, '-');
+    currentDomains.push(`${subdomain}.ec21rnc-agent.com`);
+  });
+
+  const domainsFile = path.join(NGINX_CONF_DIR, '.last-domains');
+  let lastDomains = [];
+  try { lastDomains = fs.readFileSync(domainsFile, 'utf-8').trim().split('\n'); } catch {}
+
+  if (JSON.stringify([...currentDomains].sort()) !== JSON.stringify([...lastDomains].sort())) {
+    const domainArgs = currentDomains.map(d => `-d ${d}`).join(' ');
+    fs.writeFileSync(path.join(NGINX_CONF_DIR, '.renew-ssl'), domainArgs);
+    fs.writeFileSync(domainsFile, currentDomains.join('\n'));
+    console.log(`[ssl] Domain list changed (${currentDomains.length} domains), requesting cert renewal`);
+  }
+
   // Signal nginx to reload
   fs.writeFileSync(path.join(NGINX_CONF_DIR, ".reload"), Date.now().toString());
   console.log(`[nginx] Generated config for ${serverBlocks.length} subdomain service(s)`);
@@ -291,38 +321,24 @@ app.get("/api/admin/services/custom", (_req, res) => {
 
 app.post("/api/admin/services/custom", async (req, res) => {
   const services = readJSON("custom-services.json", []);
-  const { name, description, port, path: svcPath, defaultStatus, iconName, category, preservePath, spaMode } = req.body;
+  const { name, description, port, path: svcPath, ports, defaultStatus, iconName, category, preservePath, spaMode } = req.body;
 
-  if (!name || !port) {
-    return res.status(400).json({ error: "name and port are required" });
-  }
-
-  // Auto-detect preservePath if not explicitly set
-  let autoPreservePath = false;
-  let detectedType = "generic";
-  if (preservePath === undefined) {
-    try {
-      const detected = await detectService(UPSTREAM_HOSTS[0], Number(port));
-      autoPreservePath = detected.needsPreservePath;
-      detectedType = detected.detectedType;
-      console.log(`[detect] port ${port}: type=${detectedType}, preservePath=${autoPreservePath}`);
-    } catch (e) {
-      console.error(`[detect] port ${port} failed:`, e.message);
-    }
+  if (!name || (!port && (!ports || ports.length === 0))) {
+    return res.status(400).json({ error: "name and port (or ports array) are required" });
   }
 
   const newService = {
     id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     name,
     description: description || "",
-    port: Number(port),
+    port: Number(port) || (ports && ports[0] ? Number(ports[0].port) : 0),
     ...(svcPath ? { path: svcPath } : {}),
+    ...(ports && ports.length > 1 ? { ports } : {}),
     defaultStatus: defaultStatus || "online",
     iconName: iconName || "Server",
     category: category || "tools",
-    preservePath: preservePath !== undefined ? !!preservePath : autoPreservePath,
-    spaMode: !!spaMode,
-    detectedType,
+    preservePath: false,
+    spaMode: false,
     createdAt: new Date().toISOString(),
   };
 
@@ -337,11 +353,18 @@ app.put("/api/admin/services/custom/:id", async (req, res) => {
   const idx = services.findIndex((s) => s.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: "service not found" });
 
-  const { name, description, port, path: svcPath, defaultStatus, iconName, category, preservePath, spaMode } = req.body;
+  const { name, description, port, path: svcPath, ports, defaultStatus, iconName, category, preservePath, spaMode } = req.body;
   if (name !== undefined) services[idx].name = name;
   if (description !== undefined) services[idx].description = description;
   if (port !== undefined) services[idx].port = Number(port);
   if (svcPath !== undefined) services[idx].path = svcPath || undefined;
+  if (ports !== undefined) {
+    if (Array.isArray(ports) && ports.length > 1) {
+      services[idx].ports = ports;
+    } else {
+      delete services[idx].ports;
+    }
+  }
   if (defaultStatus !== undefined) services[idx].defaultStatus = defaultStatus;
   if (iconName !== undefined) services[idx].iconName = iconName;
   if (category !== undefined) services[idx].category = category;
@@ -507,11 +530,12 @@ function probePort(port, timeout = 5000) {
 // Fallback: check via nginx proxy for Docker-network-only services
 function probeViaProxy(svcPath, timeout = 5000) {
   return new Promise((resolve) => {
+    const safePath = encodeURI(svcPath);
     const req = https.request(
       {
         hostname: "proxy",
         port: 443,
-        path: svcPath,
+        path: safePath,
         method: "GET",
         timeout,
         headers: { Host: "ec21rnc-agent.com" },
