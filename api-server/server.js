@@ -319,12 +319,73 @@ app.get("/api/admin/services/custom", (_req, res) => {
   res.json(services);
 });
 
+// 경로/포트 중복 체크 헬퍼
+function getExistingPathsAndPorts(excludeId) {
+  const services = readJSON("custom-services.json", []);
+  const paths = new Set();
+  const portsSet = new Set();
+
+  // 빌트인 서비스
+  for (const b of BUILTIN_SERVICES) {
+    paths.add(b.path.replace(/\/+$/, "").toLowerCase());
+    portsSet.add(Number(b.port));
+  }
+
+  // 커스텀 서비스 (excludeId는 수정 시 자기 자신 제외)
+  for (const s of services) {
+    if (excludeId && s.id === excludeId) continue;
+    if (s.ports && Array.isArray(s.ports)) {
+      for (const p of s.ports) {
+        if (p.path) paths.add(p.path.replace(/\/+$/, "").toLowerCase());
+        portsSet.add(Number(p.port));
+      }
+    } else {
+      if (s.path) paths.add(s.path.replace(/\/+$/, "").toLowerCase());
+      if (s.port) portsSet.add(Number(s.port));
+    }
+  }
+  return { paths, ports: portsSet };
+}
+
+function checkDuplicates(newPaths, newPorts, existing) {
+  const dupPaths = newPaths.filter(p => existing.paths.has(p.toLowerCase()));
+  const dupPorts = newPorts.filter(p => existing.ports.has(p));
+  // 추가하려는 항목 내부 중복도 체크
+  const selfDupPaths = newPaths.filter((p, i) => newPaths.indexOf(p.toLowerCase()) !== i);
+  const selfDupPorts = newPorts.filter((p, i) => newPorts.indexOf(p) !== i);
+
+  const errors = [];
+  if (dupPaths.length > 0) errors.push(`경로 중복: ${dupPaths.join(", ")}`);
+  if (dupPorts.length > 0) errors.push(`포트 중복: ${dupPorts.join(", ")}`);
+  if (selfDupPaths.length > 0) errors.push(`입력 내 경로 중복: ${selfDupPaths.join(", ")}`);
+  if (selfDupPorts.length > 0) errors.push(`입력 내 포트 중복: ${selfDupPorts.join(", ")}`);
+  return errors;
+}
+
 app.post("/api/admin/services/custom", async (req, res) => {
   const services = readJSON("custom-services.json", []);
   const { name, description, port, path: svcPath, ports, defaultStatus, iconName, category, preservePath, spaMode } = req.body;
 
   if (!name || (!port && (!ports || ports.length === 0))) {
     return res.status(400).json({ error: "name and port (or ports array) are required" });
+  }
+
+  // 중복 체크
+  const existing = getExistingPathsAndPorts();
+  const newPaths = [];
+  const newPorts = [];
+  if (ports && Array.isArray(ports) && ports.length > 1) {
+    for (const p of ports) {
+      if (p.path) newPaths.push(p.path.replace(/\/+$/, ""));
+      newPorts.push(Number(p.port));
+    }
+  } else {
+    if (svcPath) newPaths.push(svcPath.replace(/\/+$/, ""));
+    if (port) newPorts.push(Number(port));
+  }
+  const dupErrors = checkDuplicates(newPaths, newPorts, existing);
+  if (dupErrors.length > 0) {
+    return res.status(409).json({ error: dupErrors.join(" / ") });
   }
 
   const newService = {
@@ -354,6 +415,25 @@ app.put("/api/admin/services/custom/:id", async (req, res) => {
   if (idx === -1) return res.status(404).json({ error: "service not found" });
 
   const { name, description, port, path: svcPath, ports, defaultStatus, iconName, category, preservePath, spaMode } = req.body;
+
+  // 중복 체크 (자기 자신 제외)
+  const existing = getExistingPathsAndPorts(req.params.id);
+  const newPaths = [];
+  const newPorts = [];
+  if (ports && Array.isArray(ports) && ports.length > 1) {
+    for (const p of ports) {
+      if (p.path) newPaths.push(p.path.replace(/\/+$/, ""));
+      newPorts.push(Number(p.port));
+    }
+  } else {
+    if (svcPath !== undefined ? svcPath : services[idx].path) newPaths.push((svcPath !== undefined ? svcPath : services[idx].path).replace(/\/+$/, ""));
+    if (port !== undefined ? port : services[idx].port) newPorts.push(Number(port !== undefined ? port : services[idx].port));
+  }
+  const dupErrors = checkDuplicates(newPaths, newPorts, existing);
+  if (dupErrors.length > 0) {
+    return res.status(409).json({ error: dupErrors.join(" / ") });
+  }
+
   if (name !== undefined) services[idx].name = name;
   if (description !== undefined) services[idx].description = description;
   if (port !== undefined) services[idx].port = Number(port);
