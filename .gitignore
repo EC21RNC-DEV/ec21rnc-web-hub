@@ -17,3 +17,8 @@ Thumbs.db
 
 # Temp
 *.tmp
+
+# Runtime data (서버에서 생성)
+api-server/data/
+api-server/dynamic-nginx/
+api-server/package-lock.json
