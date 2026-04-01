@@ -254,6 +254,9 @@ function ServiceFormModal({
           background: "#FFFFFF",
           boxShadow: "0 24px 48px rgba(0,0,0,0.12)",
           border: "1px solid rgba(0,0,0,0.06)",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column" as const,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -267,7 +270,7 @@ function ServiceFormModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4" style={{ overflowY: "auto", flex: 1 }}>
           {/* Name */}
           <div>
             <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>서비스명 *</label>
