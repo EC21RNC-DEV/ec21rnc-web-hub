@@ -157,7 +157,7 @@ function ServiceFormModal({
   editBuiltIn,
 }: {
   onClose: () => void;
-  onAdd?: (data: Omit<CustomServiceData, "id" | "createdAt">) => void;
+  onAdd?: (data: Omit<CustomServiceData, "id" | "createdAt">) => Promise<any> | void;
   onUpdate?: (id: string, data: Partial<Omit<CustomServiceData, "id" | "createdAt">>) => void;
   onUpdateBuiltIn?: (id: string, data: { name?: string; description?: string }) => void;
   editData?: CustomServiceData | null;
@@ -200,7 +200,7 @@ function ServiceFormModal({
     ? name.trim() && description.trim()
     : name.trim() && description.trim() && portEntries.length > 0 && portsValid;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) return;
     if (isEditBuiltIn && editBuiltIn && onUpdateBuiltIn) {
@@ -231,10 +231,12 @@ function ServiceFormModal({
     };
     if (isEditCustom && editData && onUpdate) {
       onUpdate(editData.id, data);
+      onClose();
     } else if (onAdd) {
-      onAdd(data);
+      const result = await onAdd(data);
+      if (typeof result === "object" && result?.error) return;
+      onClose();
     }
-    onClose();
   };
 
   const SelectedIcon = getIcon(iconName);
@@ -655,8 +657,12 @@ export function AdminPage() {
     showToast(`${cat?.label} 전체 → ${label}`);
   };
 
-  const handleAddService = (data: Omit<CustomServiceData, "id" | "createdAt">) => {
-    addService(data);
+  const handleAddService = async (data: Omit<CustomServiceData, "id" | "createdAt">) => {
+    const result = await addService(data);
+    if (typeof result === "object" && result.error) {
+      showToast(result.error, "error");
+      return;
+    }
     showToast(`"${data.name}" 서비스가 추가되었습니다`);
   };
 

@@ -57,14 +57,18 @@ export function useCustomServices() {
       });
   }, []);
 
-  const addService = useCallback(async (service: Omit<CustomServiceData, "id" | "createdAt">) => {
+  const addService = useCallback(async (service: Omit<CustomServiceData, "id" | "createdAt">): Promise<string | { error: string }> => {
     try {
       const res = await fetch(API_BASE, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(service),
       });
-      const newService: CustomServiceData = await res.json();
+      const data = await res.json();
+      if (!res.ok) {
+        return { error: data.error || "서비스 추가 실패" };
+      }
+      const newService: CustomServiceData = data;
       setCustomServices((prev) => {
         const next = [...prev, newService];
         setCustomCategoryMap(buildCategoryMap(next));
@@ -72,17 +76,7 @@ export function useCustomServices() {
       });
       return newService.id;
     } catch {
-      const newService: CustomServiceData = {
-        ...service,
-        id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        createdAt: new Date().toISOString(),
-      };
-      setCustomServices((prev) => {
-        const next = [...prev, newService];
-        setCustomCategoryMap(buildCategoryMap(next));
-        return next;
-      });
-      return newService.id;
+      return { error: "서버 연결 실패" };
     }
   }, []);
 
