@@ -210,7 +210,8 @@ async function generateNginxConf() {
       // Multi-port group: each port entry gets its own subdomain
       for (const p of s.ports) {
         const pPath = (p.path || `/${p.label}`).replace(/\/+$/, "");
-        allServices.push({ path: pPath.startsWith("/") ? pPath : `/${pPath}`, port: Number(p.port), upstream: UPSTREAM_HOSTS[0], name: p.label });
+        const { upstream } = await resolveUpstream(Number(p.port));
+        allServices.push({ path: pPath.startsWith("/") ? pPath : `/${pPath}`, port: Number(p.port), upstream, name: p.label });
       }
     } else if (s.path && s.port) {
       const idx = withPath.indexOf(s);
