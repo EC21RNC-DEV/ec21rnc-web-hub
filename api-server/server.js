@@ -10,7 +10,7 @@ const PORT = 3001;
 const DATA_DIR = path.join(__dirname, "data");
 const NGINX_CONF_DIR = path.join(__dirname, "dynamic-nginx");
 
-const UPSTREAM_HOSTS = ["172.17.0.1", "203.242.139.254"];
+const UPSTREAM_HOSTS = ["203.242.139.254", "172.17.0.1"];
 
 // Built-in services (previously hardcoded in nginx.conf)
 // These are always included in subdomain generation
