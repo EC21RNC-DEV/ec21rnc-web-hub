@@ -111,23 +111,25 @@ function httpProbe(hostname, port, hostHeader, timeout = 2000) {
 // Resolve best upstream host AND Host header for a service
 // Returns { upstream, hostHeader } where hostHeader is "$host" or "$proxy_host"
 async function resolveUpstream(port) {
+  let fallbackHost = null;
+
   for (const hostname of UPSTREAM_HOSTS) {
-    // First try with ec21rnc-agent.com ($host) - preferred for Streamlit/WebSocket
     const withHost = await httpProbe(hostname, port, "ec21rnc-agent.com");
     if (withHost >= 200 && withHost < 400) {
       return { upstream: hostname, hostHeader: "$host" };
     }
-    // Then try with proxy_host style (hostname:port) - for services with own nginx
     const withProxy = await httpProbe(hostname, port, `${hostname}:${port}`);
     if (withProxy >= 200 && withProxy < 400) {
       return { upstream: hostname, hostHeader: "$proxy_host" };
     }
-    // If we got any response (even 4xx), this host is reachable - use $proxy_host
-    if (withHost > 0 || withProxy > 0) {
-      return { upstream: hostname, hostHeader: "$proxy_host" };
+    // 4xx/5xx 응답은 fallback 후보로만 저장, 바로 선택하지 않음
+    if (!fallbackHost && (withHost > 0 || withProxy > 0)) {
+      fallbackHost = hostname;
     }
   }
-  return { upstream: UPSTREAM_HOSTS[0], hostHeader: "$host" }; // fallback
+
+  // 2xx/3xx 호스트가 없으면 응답이라도 온 호스트 사용, 그것도 없으면 첫번째
+  return { upstream: fallbackHost || UPSTREAM_HOSTS[0], hostHeader: "$proxy_host" };
 }
 
 // --- Auto-detect Service Type ---
