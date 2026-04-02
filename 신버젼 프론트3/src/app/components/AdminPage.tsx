@@ -176,7 +176,7 @@ function ServiceFormModal({
   // Multi-port entries
   const initPorts = (): PortEntry[] => {
     if (editData?.ports && editData.ports.length > 0) return editData.ports;
-    if (editData?.port) return [{ port: editData.port, label: editData.name, path: editData.path }];
+    if (editData?.port) return [{ port: editData.port, label: editData.name, path: editData.path || "" }];
     return [{ port: 0, label: "", path: "" }];
   };
   const [portEntries, setPortEntries] = useState<PortEntry[]>(initPorts);
