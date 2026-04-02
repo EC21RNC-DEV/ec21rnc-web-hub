@@ -204,8 +204,10 @@ async function generateNginxConf() {
   // path에서 서브도메인 자동 생성: /emerics-news/ → emerics-news.ec21rnc-agent.com
 
   // Merge builtin + custom services (expand multi-port groups into individual entries)
+  // 빌트인도 resolveUpstream으로 실제 응답 가능한 호스트 탐지
+  const builtinResolved = await Promise.all(BUILTIN_SERVICES.map((b) => resolveUpstream(b.port)));
   const allServices = [
-    ...BUILTIN_SERVICES.map((b) => ({ path: b.path, port: b.port, upstream: b.upstream, name: b.path.slice(1) })),
+    ...BUILTIN_SERVICES.map((b, i) => ({ path: b.path, port: b.port, upstream: builtinResolved[i].upstream, name: b.path.slice(1) })),
   ];
   for (const s of services) {
     if (s.ports && Array.isArray(s.ports) && s.ports.length > 1) {
