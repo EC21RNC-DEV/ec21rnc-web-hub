@@ -5,6 +5,10 @@ const API_BASE = "/api/admin/services/overrides";
 export interface ServiceOverride {
   name?: string;
   description?: string;
+  port?: number;
+  path?: string;
+  category?: string;
+  iconName?: string;
 }
 
 export function useServiceOverrides() {

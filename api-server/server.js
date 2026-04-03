@@ -15,35 +15,35 @@ const UPSTREAM_HOSTS = ["203.242.139.254", "172.17.0.1"];
 // Built-in services (previously hardcoded in nginx.conf)
 // These are always included in subdomain generation
 const BUILTIN_SERVICES = [
-  { path: "/openwebui", upstream: "172.17.0.1", port: 8598 },
-  { path: "/emerics-news", upstream: "172.17.0.1", port: 8501 },
-  { path: "/emerics-opinion", upstream: "172.17.0.1", port: 8519 },
-  { path: "/emerics-monthly", upstream: "172.17.0.1", port: 8533 },
-  { path: "/emerics-trend", upstream: "172.17.0.1", port: 8555 },
-  { path: "/aif-newsletter", upstream: "172.17.0.1", port: 8503 },
-  { path: "/emerics-inspection", upstream: "172.17.0.1", port: 8542 },
-  { path: "/gip-daily", upstream: "172.17.0.1", port: 8525 },
-  { path: "/nuclear-bid", upstream: "172.17.0.1", port: 8513 },
-  { path: "/globecorpo-auto", upstream: "172.17.0.1", port: 8509 },
-  { path: "/cifc-issues", upstream: "172.17.0.1", port: 8540 },
-  { path: "/cifc-bidding", upstream: "172.17.0.1", port: 8541 },
-  { path: "/agri-export", upstream: "172.17.0.1", port: 8518 },
-  { path: "/issue-clustering", upstream: "172.17.0.1", port: 8591 },
-  { path: "/csf-tools", upstream: "172.17.0.1", port: 8508 },
-  { path: "/ai-tools", upstream: "172.17.0.1", port: 8515 },
-  { path: "/interview-translator", upstream: "172.17.0.1", port: 8504 },
-  { path: "/report-verification", upstream: "172.17.0.1", port: 8590 },
-  { path: "/article-extractor", upstream: "172.17.0.1", port: 8592 },
-  { path: "/prompt-hub", upstream: "172.17.0.1", port: 8599 },
-  { path: "/pdf-converter", upstream: "172.17.0.1", port: 8593 },
-  { path: "/agri-custom-market", upstream: "172.17.0.1", port: 8511 },
-  { path: "/agri-custom-compete", upstream: "172.17.0.1", port: 8514 },
-  { path: "/pet-market", upstream: "172.17.0.1", port: 8522 },
-  { path: "/pet-compete", upstream: "172.17.0.1", port: 8524 },
-  { path: "/kocca-law", upstream: "172.17.0.1", port: 8516 },
-  { path: "/kocca-content", upstream: "172.17.0.1", port: 8517 },
-  { path: "/kocca-overseas", upstream: "172.17.0.1", port: 8520 },
-  { path: "/kocca-domestic", upstream: "172.17.0.1", port: 8521 },
+  { id: "s1",  path: "/openwebui", upstream: "172.17.0.1", port: 8598 },
+  { id: "s2",  path: "/emerics-news", upstream: "172.17.0.1", port: 8501 },
+  { id: "s3",  path: "/emerics-opinion", upstream: "172.17.0.1", port: 8519 },
+  { id: "s4",  path: "/emerics-monthly", upstream: "172.17.0.1", port: 8533 },
+  { id: "s5",  path: "/emerics-trend", upstream: "172.17.0.1", port: 8555 },
+  { id: "s6",  path: "/aif-newsletter", upstream: "172.17.0.1", port: 8503 },
+  { id: "s7",  path: "/emerics-inspection", upstream: "172.17.0.1", port: 8542 },
+  { id: "s8",  path: "/gip-daily", upstream: "172.17.0.1", port: 8525 },
+  { id: "s9",  path: "/nuclear-bid", upstream: "172.17.0.1", port: 8513 },
+  { id: "s10", path: "/globecorpo-auto", upstream: "172.17.0.1", port: 8509 },
+  { id: "s11", path: "/cifc-issues", upstream: "172.17.0.1", port: 8540 },
+  { id: "s12", path: "/cifc-bidding", upstream: "172.17.0.1", port: 8541 },
+  { id: "s13", path: "/agri-export", upstream: "172.17.0.1", port: 8518 },
+  { id: "s14", path: "/issue-clustering", upstream: "172.17.0.1", port: 8591 },
+  { id: "s15", path: "/csf-tools", upstream: "172.17.0.1", port: 8508 },
+  { id: "s16", path: "/ai-tools", upstream: "172.17.0.1", port: 8515 },
+  { id: "s17", path: "/interview-translator", upstream: "172.17.0.1", port: 8504 },
+  { id: "s18", path: "/report-verification", upstream: "172.17.0.1", port: 8590 },
+  { id: "s19", path: "/article-extractor", upstream: "172.17.0.1", port: 8592 },
+  { id: "s20", path: "/prompt-hub", upstream: "172.17.0.1", port: 8599 },
+  { id: "s21", path: "/pdf-converter", upstream: "172.17.0.1", port: 8593 },
+  { id: "s22", path: "/agri-custom-market", upstream: "172.17.0.1", port: 8511 },
+  { id: "s23", path: "/agri-custom-compete", upstream: "172.17.0.1", port: 8514 },
+  { id: "s24", path: "/pet-market", upstream: "172.17.0.1", port: 8522 },
+  { id: "s25", path: "/pet-compete", upstream: "172.17.0.1", port: 8524 },
+  { id: "s26", path: "/kocca-law", upstream: "172.17.0.1", port: 8516 },
+  { id: "s27", path: "/kocca-content", upstream: "172.17.0.1", port: 8517 },
+  { id: "s28", path: "/kocca-overseas", upstream: "172.17.0.1", port: 8520 },
+  { id: "s29", path: "/kocca-domestic", upstream: "172.17.0.1", port: 8521 },
 ];
 
 // Middleware
@@ -205,9 +205,21 @@ async function generateNginxConf() {
 
   // Merge builtin + custom services (expand multi-port groups into individual entries)
   // 빌트인도 resolveUpstream으로 실제 응답 가능한 호스트 탐지
-  const builtinResolved = await Promise.all(BUILTIN_SERVICES.map((b) => resolveUpstream(b.port)));
+  const deletedIds = readJSON("deleted-services.json", []);
+  const svcOverrides = readJSON("service-overrides.json", {});
+  const activeBuiltins = BUILTIN_SERVICES.filter((b) => !deletedIds.includes(b.id));
+  // Apply overrides to builtins (port/path)
+  const overriddenBuiltins = activeBuiltins.map((b) => {
+    const o = svcOverrides[b.id];
+    return {
+      ...b,
+      port: o?.port ?? b.port,
+      path: o?.path ?? b.path,
+    };
+  });
+  const builtinResolved = await Promise.all(overriddenBuiltins.map((b) => resolveUpstream(b.port)));
   const allServices = [
-    ...BUILTIN_SERVICES.map((b, i) => ({ path: b.path, port: b.port, upstream: builtinResolved[i].upstream, name: b.path.slice(1) })),
+    ...overriddenBuiltins.map((b, i) => ({ path: b.path, port: b.port, upstream: builtinResolved[i].upstream, name: b.path.slice(1) })),
   ];
   for (const s of services) {
     if (s.ports && Array.isArray(s.ports) && s.ports.length > 1) {
@@ -344,8 +356,10 @@ function getExistingPathsAndPorts(excludeId) {
   const paths = new Set();
   const portsSet = new Set();
 
-  // 빌트인 서비스
+  // 빌트인 서비스 (삭제된 것 제외)
+  const deletedIds = readJSON("deleted-services.json", []);
   for (const b of BUILTIN_SERVICES) {
+    if (deletedIds.includes(b.id)) continue;
     paths.add(b.path.replace(/\/+$/, "").toLowerCase());
     portsSet.add(Number(b.port));
   }
@@ -490,6 +504,39 @@ app.delete("/api/admin/services/custom/:id", async (req, res) => {
 // Service Property Overrides API (for built-in services)
 // =====================
 
+// =====================
+// Translate to Slug API
+// =====================
+
+app.post("/api/admin/translate-slug", async (req, res) => {
+  const { text } = req.body;
+  if (!text) return res.status(400).json({ error: "text required" });
+
+  try {
+    // Google Translate 무료 API
+    const encoded = encodeURIComponent(text);
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=ko&tl=en&dt=t&q=${encoded}`;
+    const response = await new Promise((resolve, reject) => {
+      https.get(url, (resp) => {
+        let data = "";
+        resp.on("data", (chunk) => { data += chunk; });
+        resp.on("end", () => resolve(data));
+        resp.on("error", reject);
+      }).on("error", reject);
+    });
+    const parsed = JSON.parse(response);
+    const translated = parsed[0].map((s) => s[0]).join("").trim();
+    const slug = translated.toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-|-$/g, "");
+    res.json({ slug });
+  } catch (err) {
+    res.status(500).json({ error: "translation failed" });
+  }
+});
+
 app.get("/api/admin/services/overrides", (_req, res) => {
   const overrides = readJSON("service-overrides.json", {});
   res.json(overrides);
@@ -497,11 +544,19 @@ app.get("/api/admin/services/overrides", (_req, res) => {
 
 app.put("/api/admin/services/overrides/:id", (req, res) => {
   const overrides = readJSON("service-overrides.json", {});
-  const { name, description } = req.body;
+  const { name, description, port, path, category, iconName } = req.body;
   if (!overrides[req.params.id]) overrides[req.params.id] = {};
   if (name !== undefined) overrides[req.params.id].name = name;
   if (description !== undefined) overrides[req.params.id].description = description;
+  if (port !== undefined) overrides[req.params.id].port = port;
+  if (path !== undefined) overrides[req.params.id].path = path;
+  if (category !== undefined) overrides[req.params.id].category = category;
+  if (iconName !== undefined) overrides[req.params.id].iconName = iconName;
   writeJSON("service-overrides.json", overrides);
+  // 포트/경로 변경 시 Nginx 재생성
+  if (port !== undefined || path !== undefined) {
+    generateNginxConf().catch(() => {});
+  }
   res.json({ ok: true });
 });
 
@@ -580,6 +635,55 @@ app.put("/api/admin/hidden/:id", (req, res) => {
   }
   writeJSON("hidden-services.json", ids);
   res.json({ ok: true, ids });
+});
+
+// =====================
+// Deleted Services API (빌트인 완전 삭제)
+// =====================
+
+app.get("/api/admin/deleted", (_req, res) => {
+  res.json(readJSON("deleted-services.json", []));
+});
+
+app.put("/api/admin/deleted/:id", (req, res) => {
+  const ids = readJSON("deleted-services.json", []);
+  const id = req.params.id;
+  const idx = ids.indexOf(id);
+  if (idx === -1) {
+    ids.push(id);
+  } else {
+    ids.splice(idx, 1);
+  }
+  writeJSON("deleted-services.json", ids);
+  // 숨김 목록에서도 제거 (삭제가 우선)
+  const hidden = readJSON("hidden-services.json", []);
+  const hIdx = hidden.indexOf(id);
+  if (hIdx !== -1) {
+    hidden.splice(hIdx, 1);
+    writeJSON("hidden-services.json", hidden);
+  }
+  // Nginx 재생성 (서브도메인에서 제거)
+  generateNginxConf().catch(() => {});
+  res.json({ ok: true, ids });
+});
+
+// =====================
+// Service Order API
+// =====================
+
+app.get("/api/admin/service-order", (_req, res) => {
+  res.json(readJSON("service-order.json", {}));
+});
+
+app.put("/api/admin/service-order", (req, res) => {
+  const { categoryId, orderedIds } = req.body;
+  if (!categoryId || !Array.isArray(orderedIds)) {
+    return res.status(400).json({ error: "categoryId and orderedIds required" });
+  }
+  const data = readJSON("service-order.json", {});
+  data[categoryId] = orderedIds;
+  writeJSON("service-order.json", data);
+  res.json({ ok: true });
 });
 
 // =====================

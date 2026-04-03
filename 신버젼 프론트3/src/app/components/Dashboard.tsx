@@ -14,7 +14,10 @@ import { useCustomServices } from "./useCustomServices";
 import { useAdminOnly } from "./useAdminOnly";
 import { useAdminAuth } from "./useAdminAuth";
 import { useHiddenServices } from "./useHiddenServices";
+import { useDeletedServices } from "./useDeletedServices";
+import { useServiceOverrides } from "./useServiceOverrides";
 import { getIcon } from "./icon-map";
+import { useServiceOrder } from "./useServiceOrder";
 import { servicesData, categories, categoryMap, DOMAIN } from "./services-data";
 import ec21Logo from "@/assets/5641b57d5ebb9d82fb48105ab919b7a78f36cd98.png";
 
@@ -27,21 +30,28 @@ export function Dashboard() {
   const { isAdminOnly } = useAdminOnly();
   const { isAuthenticated } = useAdminAuth();
   const { isHidden } = useHiddenServices();
+  const { isDeleted, loaded: deletedLoaded } = useDeletedServices();
+  const { overrides: svcOverrides, getOverriddenName, getOverriddenDescription } = useServiceOverrides();
+  const { applyOrder } = useServiceOrder();
 
   // Build all services including custom ones, filtering admin-only for non-admins
   const allServices: Service[] = useMemo(() => {
+    if (!deletedLoaded) return [];
     const builtIn = servicesData
-      .filter((s) => !isHidden(s.id))
+      .filter((s) => !isHidden(s.id) && !isDeleted(s.id))
       .filter((s) => isAuthenticated || !isAdminOnly(s.id))
-      .map((s) => ({
-        id: s.id,
-        name: s.name,
-        description: s.description,
-        port: s.port,
-        path: s.path,
-        status: getStatus(s.id, s.defaultStatus),
-        icon: s.icon,
-      }));
+      .map((s) => {
+        const o = svcOverrides[s.id];
+        return {
+          id: s.id,
+          name: getOverriddenName(s.id, s.name),
+          description: getOverriddenDescription(s.id, s.description),
+          port: o?.port ?? s.port,
+          path: o?.path ?? s.path,
+          status: getStatus(s.id, s.defaultStatus),
+          icon: o?.iconName ? getIcon(o.iconName) : s.icon,
+        };
+      });
     const custom = customServices
       .filter((s) => isAuthenticated || !isAdminOnly(s.id))
       .map((s) => ({
@@ -57,11 +67,22 @@ export function Dashboard() {
     return [...builtIn, ...custom];
   }, [getStatus, customServices, isAdminOnly, isAuthenticated]);
 
-  // Merged category map
+  // Merged category map (with overrides applied)
   const mergedCategoryMap = useMemo(() => {
     const merged: Record<string, string[]> = {};
     for (const key of Object.keys(categoryMap)) {
       merged[key] = [...categoryMap[key]];
+    }
+    // Move overridden builtins to their new category
+    for (const [id, o] of Object.entries(svcOverrides)) {
+      if (o.category) {
+        for (const ids of Object.values(merged)) {
+          const idx = ids.indexOf(id);
+          if (idx !== -1) ids.splice(idx, 1);
+        }
+        if (!merged[o.category]) merged[o.category] = [];
+        merged[o.category].push(id);
+      }
     }
     for (const [key, ids] of Object.entries(customCategoryMap)) {
       if (!merged[key]) merged[key] = [];
@@ -230,7 +251,8 @@ export function Dashboard() {
                 {favoriteServices.map((svc, i) => (
                   <ServiceCard key={svc.id} service={svc} index={i} compact
                     isFavorite onToggleFavorite={toggleFavorite}
-                    health={getHealth(svc.port)} getHealth={getHealth} />
+                    health={getHealth(svc.port)} getHealth={getHealth}
+                    isAdmin={isAuthenticated} />
                 ))}
               </div>
             ) : (
@@ -318,7 +340,10 @@ export function Dashboard() {
             <AnimatePresence mode="popLayout">
               {visibleCategories.map((cat, catIndex) => {
                 const ids = mergedCategoryMap[cat.id] ?? [];
-                const catServices = getFilteredServices(ids);
+                const orderedIds = applyOrder(cat.id, ids);
+                const catServices = getFilteredServices(orderedIds).sort(
+                  (a, b) => orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id)
+                );
                 return (
                   <motion.section
                     key={cat.id}
@@ -381,7 +406,8 @@ export function Dashboard() {
                       {catServices.map((service, idx) => (
                         <ServiceCard key={service.id} service={service} index={idx}
                           isFavorite={isFavorite(service.id)} onToggleFavorite={toggleFavorite}
-                          health={getHealth(service.port)} getHealth={getHealth} />
+                          health={getHealth(service.port)} getHealth={getHealth}
+                          isAdmin={isAuthenticated} />
                       ))}
                     </div>
                   </motion.section>

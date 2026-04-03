@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   ArrowLeft, Search, X, RotateCcw, CheckCircle2, AlertTriangle,
   XCircle, Server, Shield, ChevronDown, Plus, Trash2, Lock,
   Eye, EyeOff, LogOut, Key, RefreshCw, Wifi, WifiOff, Loader2, CloudOff, Pencil, Layers,
+  GripVertical,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Link } from "react-router";
@@ -12,9 +13,11 @@ import { useCustomServices, type CustomServiceData, type PortEntry } from "./use
 import { useServerHealth } from "./useServerHealth";
 import { useAdminOnly } from "./useAdminOnly";
 import { useHiddenServices } from "./useHiddenServices";
+import { useDeletedServices } from "./useDeletedServices";
 import { useServiceOverrides } from "./useServiceOverrides";
 import { getIcon, iconNames } from "./icon-map";
 import { servicesData, categories, categoryMap, type ServiceData } from "./services-data";
+import { useServiceOrder } from "./useServiceOrder";
 import type { ServiceStatus } from "./ServiceCard";
 import ec21Logo from "@/assets/5641b57d5ebb9d82fb48105ab919b7a78f36cd98.png";
 
@@ -159,17 +162,17 @@ function ServiceFormModal({
   onClose: () => void;
   onAdd?: (data: Omit<CustomServiceData, "id" | "createdAt">) => Promise<any> | void;
   onUpdate?: (id: string, data: Partial<Omit<CustomServiceData, "id" | "createdAt">>) => void;
-  onUpdateBuiltIn?: (id: string, data: { name?: string; description?: string }) => void;
+  onUpdateBuiltIn?: (id: string, data: { name?: string; description?: string; port?: number; path?: string; category?: string; iconName?: string }) => void;
   editData?: CustomServiceData | null;
-  editBuiltIn?: { id: string; name: string; description: string } | null;
+  editBuiltIn?: { id: string; name: string; description: string; port: number; path?: string; category: string; iconName: string } | null;
 }) {
   const isEditCustom = !!editData;
   const isEditBuiltIn = !!editBuiltIn;
   const isEdit = isEditCustom || isEditBuiltIn;
   const [name, setName] = useState(editData?.name ?? editBuiltIn?.name ?? "");
   const [description, setDescription] = useState(editData?.description ?? editBuiltIn?.description ?? "");
-  const [category, setCategory] = useState(editData?.category ?? "tools");
-  const [iconName, setIconName] = useState(editData?.iconName ?? "Server");
+  const [category, setCategory] = useState(editData?.category ?? editBuiltIn?.category ?? "tools");
+  const [iconName, setIconName] = useState(editData?.iconName ?? editBuiltIn?.iconName ?? "Server");
   const [status, setStatus] = useState<ServiceStatus>(editData?.defaultStatus ?? "online");
   const [showIconPicker, setShowIconPicker] = useState(false);
 
@@ -177,6 +180,7 @@ function ServiceFormModal({
   const initPorts = (): PortEntry[] => {
     if (editData?.ports && editData.ports.length > 0) return editData.ports;
     if (editData?.port) return [{ port: editData.port, label: editData.name, path: editData.path || "" }];
+    if (editBuiltIn?.port) return [{ port: editBuiltIn.port, label: editBuiltIn.name, path: editBuiltIn.path || "" }];
     return [{ port: 0, label: "", path: "" }];
   };
   const [portEntries, setPortEntries] = useState<PortEntry[]>(initPorts);
@@ -188,23 +192,55 @@ function ServiceFormModal({
   };
 
   // Auto-generate path from label
+  // 한글 → 영어 슬러그 번역 (디바운스)
+  const translateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const translateToSlug = (text: string): Promise<string | null> => {
+    return new Promise((resolve) => {
+      if (translateTimer.current) clearTimeout(translateTimer.current);
+      translateTimer.current = setTimeout(async () => {
+        try {
+          const r = await fetch("/api/admin/translate-slug", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          });
+          const data = await r.json();
+          resolve(data.slug || null);
+        } catch { resolve(null); }
+      }, 500);
+    });
+  };
+
   const autoPath = (label: string) => {
     const slug = label.trim().toLowerCase()
+      .replace(/[가-힣ㄱ-ㅎㅏ-ㅣ]+/g, "")
       .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9가-힣\-]/g, "");
+      .replace(/[^a-z0-9\-]/g, "")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-|-$/g, "");
     return slug ? `/${slug}` : "";
   };
 
   const portsValid = portEntries.every((e) => e.port > 0 && e.label.trim());
-  const isValid = isEditBuiltIn
-    ? name.trim() && description.trim()
-    : name.trim() && description.trim() && portEntries.length > 0 && portsValid;
+  const isValid = name.trim() && description.trim() && portEntries.length > 0 && portsValid;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) return;
     if (isEditBuiltIn && editBuiltIn && onUpdateBuiltIn) {
-      onUpdateBuiltIn(editBuiltIn.id, { name: name.trim(), description: description.trim() });
+      const cleanPorts = portEntries.map((e) => ({
+        port: Number(e.port),
+        label: e.label.trim(),
+        path: e.path?.trim() || autoPath(e.label),
+      }));
+      onUpdateBuiltIn(editBuiltIn.id, {
+        name: name.trim(),
+        description: description.trim(),
+        port: cleanPorts[0].port,
+        path: cleanPorts[0].path.startsWith("/") ? cleanPorts[0].path : `/${cleanPorts[0].path}`,
+        category,
+        iconName,
+      });
       onClose();
       return;
     }
@@ -300,8 +336,8 @@ function ServiceFormModal({
             />
           </div>
 
-          {/* Port entries + Category (custom/add only) */}
-          {!isEditBuiltIn && (
+          {/* Port entries + Category */}
+          {(
             <div>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -338,7 +374,18 @@ function ServiceFormModal({
                           <input
                             type="text"
                             value={entry.label}
-                            onChange={(e) => updatePortEntry(idx, "label", e.target.value)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updatePortEntry(idx, "label", val);
+                              const eng = autoPath(val);
+                              if (eng) updatePortEntry(idx, "path", eng);
+                              // 한글 포함 시 번역 API로 경로 자동 생성
+                              if (/[가-힣]/.test(val) && val.trim().length >= 2) {
+                                translateToSlug(val).then((slug) => {
+                                  if (slug) updatePortEntry(idx, "path", `/${slug}`);
+                                });
+                              }
+                            }}
                             placeholder="예: EMERiCs 뉴스브리핑"
                             className="w-full px-2.5 py-2 rounded-lg text-sm outline-none"
                             style={{ background: "#FFFFFF", border: "1.5px solid rgba(0,0,0,0.08)", color: "#1E293B" }}
@@ -407,7 +454,7 @@ function ServiceFormModal({
           )}
 
           {/* Multi-port info banner */}
-          {!isEditBuiltIn && portEntries.length > 1 && (
+          {portEntries.length > 1 && (
             <div className="px-3 py-2.5 rounded-xl" style={{ background: "#EEF2FF", border: "1.5px solid #C7D2FE" }}>
               <p className="text-xs font-semibold" style={{ color: "#374151" }}>
                 <Layers size={12} className="inline mr-1" style={{ verticalAlign: "middle" }} />
@@ -423,7 +470,7 @@ function ServiceFormModal({
           )}
 
           {/* Status (custom/add only) */}
-          {!isEditBuiltIn && <div>
+          {<div>
             <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>초기 상태</label>
             <div className="flex gap-2">
               {statusOptions.map((opt) => (
@@ -446,7 +493,7 @@ function ServiceFormModal({
           </div>}
 
           {/* Icon (custom/add only) */}
-          {!isEditBuiltIn && <div>
+          {<div>
             <label className="text-xs font-semibold mb-1.5 block" style={{ color: "#374151" }}>아이콘</label>
             <button
               type="button"
@@ -531,7 +578,9 @@ export function AdminPage() {
   const { customServices, addService, removeService, updateService } = useCustomServices();
   const { adminOnlyIds, toggleAdminOnly, isAdminOnly } = useAdminOnly();
   const { isHidden, toggleHidden } = useHiddenServices();
+  const { isDeleted, deleteService: permanentDelete } = useDeletedServices();
   const { overrides: serviceOverrides, updateOverride, getOverriddenName, getOverriddenDescription } = useServiceOverrides();
+  const { order: serviceOrder, saveOrder, applyOrder } = useServiceOrder();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<ServiceStatus | "all">("all");
@@ -539,8 +588,12 @@ export function AdminPage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingService, setEditingService] = useState<CustomServiceData | null>(null);
-  const [editingBuiltIn, setEditingBuiltIn] = useState<{ id: string; name: string; description: string } | null>(null);
+  const [editingBuiltIn, setEditingBuiltIn] = useState<{ id: string; name: string; description: string; port: number; path?: string; category: string; iconName: string } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  // Drag-and-drop state
+  const dragItemRef = useRef<{ catId: string; svcId: string } | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   // All services (built-in + custom)
   const allServicesData = useMemo(() => {
@@ -586,6 +639,7 @@ export function AdminPage() {
   const filteredBuiltIn = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return servicesData.filter((s) => {
+      if (isDeleted(s.id)) return false;
       const currentStatus = getStatus(s.id, s.defaultStatus);
       if (filterStatus !== "all" && currentStatus !== filterStatus) return false;
       if (query) {
@@ -597,7 +651,8 @@ export function AdminPage() {
       }
       return true;
     });
-  }, [searchQuery, filterStatus, getStatus]);
+  }, [searchQuery, filterStatus, getStatus, isDeleted]);
+
 
   const filteredCustom = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -671,7 +726,7 @@ export function AdminPage() {
     showToast(`"${data.name}" 서비스가 수정되었습니다`);
   };
 
-  const handleUpdateBuiltIn = (id: string, data: { name?: string; description?: string }) => {
+  const handleUpdateBuiltIn = (id: string, data: { name?: string; description?: string; port?: number; path?: string; category?: string; iconName?: string }) => {
     updateOverride(id, data);
     showToast(`"${data.name}" 서비스가 수정되었습니다`);
   };
@@ -702,21 +757,60 @@ export function AdminPage() {
     );
   };
 
-  const renderServiceRow = (svc: ServiceData | (CustomServiceData & { icon?: never }), idx: number, total: number, isCustom: boolean) => {
+  const renderServiceRow = (svc: ServiceData | (CustomServiceData & { icon?: never }), idx: number, total: number, isCustom: boolean, catId: string) => {
     const currentStatus = getStatus(svc.id, svc.defaultStatus);
     const isOverridden = overrides[svc.id] !== undefined;
     const Icon = isCustom ? getIcon((svc as CustomServiceData).iconName) : (svc as ServiceData).icon;
     const statusMeta = statusOptions.find((o) => o.value === currentStatus)!;
+    const isDragOver = dragOverId === svc.id;
 
     return (
       <div
         key={svc.id}
+        draggable
+        onDragStart={(e) => {
+          dragItemRef.current = { catId, svcId: svc.id };
+          e.dataTransfer.effectAllowed = "move";
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          if (dragItemRef.current && dragItemRef.current.catId === catId) {
+            setDragOverId(svc.id);
+          }
+        }}
+        onDragLeave={() => { if (dragOverId === svc.id) setDragOverId(null); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOverId(null);
+          if (!dragItemRef.current || dragItemRef.current.catId !== catId) return;
+          const fromId = dragItemRef.current.svcId;
+          if (fromId === svc.id) return;
+          const catIds = mergedCategoryMap[catId] ?? [];
+          const orderedIds = applyOrder(catId, catIds);
+          const fromIdx = orderedIds.indexOf(fromId);
+          const toIdx = orderedIds.indexOf(svc.id);
+          if (fromIdx === -1 || toIdx === -1) return;
+          const newOrder = [...orderedIds];
+          newOrder.splice(fromIdx, 1);
+          newOrder.splice(toIdx, 0, fromId);
+          saveOrder(catId, newOrder);
+          showToast("순서가 변경되었습니다", "info");
+        }}
+        onDragEnd={() => { dragItemRef.current = null; setDragOverId(null); }}
         className="flex items-center gap-3 px-5 py-3 transition-colors"
         style={{
           borderBottom: idx < total - 1 ? "1px solid #F8FAFC" : "none",
-          background: isOverridden ? "rgba(99,102,241,0.02)" : "transparent",
+          background: isDragOver ? "rgba(99,102,241,0.06)" : isOverridden ? "rgba(99,102,241,0.02)" : "transparent",
+          borderTop: isDragOver ? "2px solid #4F46E5" : "2px solid transparent",
         }}
       >
+        <div
+          className="flex items-center justify-center flex-shrink-0 cursor-grab active:cursor-grabbing"
+          style={{ color: "#CBD5E1" }}
+        >
+          <GripVertical size={14} />
+        </div>
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
           style={{ background: statusMeta.bg }}
@@ -818,10 +912,16 @@ export function AdminPage() {
                 if (isCustom) {
                   setEditingService(customServices.find((s) => s.id === svc.id) ?? null);
                 } else {
+                  const svcCat = Object.entries(categoryMap).find(([, ids]) => ids.includes(svc.id))?.[0] ?? "tools";
+                  const override = serviceOverrides[svc.id];
                   setEditingBuiltIn({
                     id: svc.id,
                     name: getOverriddenName(svc.id, svc.name),
                     description: getOverriddenDescription(svc.id, svc.description),
+                    port: override?.port ?? svc.port,
+                    path: override?.path ?? svc.path,
+                    category: override?.category ?? svcCat,
+                    iconName: override?.iconName ?? "Server",
                   });
                 }
               }}
@@ -840,15 +940,15 @@ export function AdminPage() {
                   if (isCustom) {
                     handleDeleteService(svc.id);
                   } else {
-                    toggleHidden(svc.id);
-                    showToast(`"${svc.name}" 숨김 처리됨`, "error");
+                    permanentDelete(svc.id);
+                    showToast(`"${svc.name}" 삭제됨`, "error");
                     setDeleteConfirm(null);
                   }
                 }}
                 className="px-2 py-1.5 rounded-lg text-[10px] font-bold"
                 style={{ background: "#DC2626", color: "#FFF" }}
               >
-                확인
+                삭제
               </button>
               <button
                 onClick={() => setDeleteConfirm(null)}
@@ -1061,9 +1161,12 @@ export function AdminPage() {
         {/* Category sections */}
         {categories.map((cat) => {
           const catIds = mergedCategoryMap[cat.id] ?? [];
-          const builtInCat = filteredBuiltIn.filter((s) => catIds.includes(s.id));
-          const customCat = filteredCustom.filter((s) => catIds.includes(s.id));
-          const allCat = [...builtInCat, ...customCat];
+          const orderedCatIds = applyOrder(cat.id, catIds);
+          const builtInCat = filteredBuiltIn.filter((s) => orderedCatIds.includes(s.id));
+          const customCat = filteredCustom.filter((s) => orderedCatIds.includes(s.id));
+          const allCatUnsorted = [...builtInCat, ...customCat];
+          // Sort by saved order
+          const allCat = allCatUnsorted.sort((a, b) => orderedCatIds.indexOf(a.id) - orderedCatIds.indexOf(b.id));
           if (allCat.length === 0) return null;
 
           const isExpanded = expandedCategory === null || expandedCategory === cat.id;
@@ -1114,8 +1217,10 @@ export function AdminPage() {
                     transition={{ duration: 0.2 }}
                     className="overflow-hidden"
                   >
-                    {builtInCat.map((svc, idx) => renderServiceRow(svc, idx, allCat.length, false))}
-                    {customCat.map((svc, idx) => renderServiceRow(svc as any, builtInCat.length + idx, allCat.length, true))}
+                    {allCat.map((svc, idx) => {
+                      const isCust = customCat.some((c) => c.id === svc.id);
+                      return renderServiceRow(svc as any, idx, allCat.length, isCust, cat.id);
+                    })}
                   </motion.div>
                 )}
               </AnimatePresence>
